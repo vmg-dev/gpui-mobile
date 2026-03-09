@@ -6,10 +6,10 @@
 //!
 //! Feature-gated behind `location`.
 
-#[cfg(target_os = "ios")]
-mod ios;
 #[cfg(target_os = "android")]
 mod android;
+#[cfg(target_os = "ios")]
+mod ios;
 
 /// GPS position data.
 #[derive(Debug, Clone, Copy)]
@@ -17,12 +17,12 @@ pub struct Position {
     pub latitude: f64,
     pub longitude: f64,
     pub altitude: f64,
-    pub accuracy: f64,          // meters
-    pub speed: f64,             // m/s
+    pub accuracy: f64, // meters
+    pub speed: f64,    // m/s
     pub speed_accuracy: f64,
-    pub heading: f64,           // degrees
+    pub heading: f64, // degrees
     pub heading_accuracy: f64,
-    pub timestamp: u64,         // unix millis
+    pub timestamp: u64, // unix millis
 }
 
 /// Location accuracy setting.
@@ -56,31 +56,49 @@ impl Default for LocationSettings {
 /// Whether location services are enabled on the device.
 pub fn is_location_service_enabled() -> Result<bool, String> {
     #[cfg(target_os = "ios")]
-    { ios::is_location_service_enabled() }
+    {
+        ios::is_location_service_enabled()
+    }
     #[cfg(target_os = "android")]
-    { android::is_location_service_enabled() }
+    {
+        android::is_location_service_enabled()
+    }
     #[cfg(not(any(target_os = "ios", target_os = "android")))]
-    { Ok(false) }
+    {
+        Ok(false)
+    }
 }
 
 /// Get the current position (one-shot).
 pub fn get_current_position(settings: &LocationSettings) -> Result<Position, String> {
     #[cfg(target_os = "ios")]
-    { ios::get_current_position(settings) }
+    {
+        ios::get_current_position(settings)
+    }
     #[cfg(target_os = "android")]
-    { android::get_current_position(settings) }
+    {
+        android::get_current_position(settings)
+    }
     #[cfg(not(any(target_os = "ios", target_os = "android")))]
-    { Err("Location not supported on this platform".into()) }
+    {
+        Err("Location not supported on this platform".into())
+    }
 }
 
 /// Get the last known position (may be stale, faster than current).
 pub fn get_last_known_position() -> Result<Option<Position>, String> {
     #[cfg(target_os = "ios")]
-    { ios::get_last_known_position() }
+    {
+        ios::get_last_known_position()
+    }
     #[cfg(target_os = "android")]
-    { android::get_last_known_position() }
+    {
+        android::get_last_known_position()
+    }
     #[cfg(not(any(target_os = "ios", target_os = "android")))]
-    { Ok(None) }
+    {
+        Ok(None)
+    }
 }
 
 /// Calculate distance between two positions in meters (Haversine formula).

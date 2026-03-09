@@ -1,6 +1,6 @@
 use super::{WebViewHandle, WebViewSettings};
-use objc::{class, msg_send, sel, sel_impl};
 use objc::runtime::Object;
+use objc::{class, msg_send, sel, sel_impl};
 
 #[link(name = "WebKit", kind = "framework")]
 extern "C" {}
@@ -28,7 +28,9 @@ pub fn load_url(url: &str, settings: &WebViewSettings) -> Result<WebViewHandle, 
         let _: *mut Object = msg_send![webview, loadRequest: request];
 
         add_to_window(webview)?;
-        Ok(WebViewHandle { ptr: webview as usize })
+        Ok(WebViewHandle {
+            ptr: webview as usize,
+        })
     }
 }
 
@@ -47,7 +49,9 @@ pub fn load_html(html: &str, settings: &WebViewSettings) -> Result<WebViewHandle
         let _: *mut Object = msg_send![webview, loadHTMLString: ns_html baseURL: base_url];
 
         add_to_window(webview)?;
-        Ok(WebViewHandle { ptr: webview as usize })
+        Ok(WebViewHandle {
+            ptr: webview as usize,
+        })
     }
 }
 

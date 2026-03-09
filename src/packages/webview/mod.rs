@@ -9,10 +9,10 @@
 //!
 //! Feature-gated behind `webview`.
 
-#[cfg(target_os = "ios")]
-mod ios;
 #[cfg(target_os = "android")]
 mod android;
+#[cfg(target_os = "ios")]
+mod ios;
 
 /// Configuration for creating a WebView.
 #[derive(Debug, Clone)]
@@ -52,71 +52,120 @@ impl Default for WebViewSettings {
 /// Returns an opaque handle that can be used to control or dismiss the view.
 pub fn load_url(url: &str, settings: &WebViewSettings) -> Result<WebViewHandle, String> {
     #[cfg(target_os = "ios")]
-    { ios::load_url(url, settings) }
+    {
+        ios::load_url(url, settings)
+    }
     #[cfg(target_os = "android")]
-    { android::load_url(url, settings) }
+    {
+        android::load_url(url, settings)
+    }
     #[cfg(not(any(target_os = "ios", target_os = "android")))]
-    { let _ = (url, settings); Err("webview is only available on iOS and Android".into()) }
+    {
+        let _ = (url, settings);
+        Err("webview is only available on iOS and Android".into())
+    }
 }
 
 /// Load raw HTML content in a WebView.
 pub fn load_html(html: &str, settings: &WebViewSettings) -> Result<WebViewHandle, String> {
     #[cfg(target_os = "ios")]
-    { ios::load_html(html, settings) }
+    {
+        ios::load_html(html, settings)
+    }
     #[cfg(target_os = "android")]
-    { android::load_html(html, settings) }
+    {
+        android::load_html(html, settings)
+    }
     #[cfg(not(any(target_os = "ios", target_os = "android")))]
-    { let _ = (html, settings); Err("webview is only available on iOS and Android".into()) }
+    {
+        let _ = (html, settings);
+        Err("webview is only available on iOS and Android".into())
+    }
 }
 
 /// Evaluate JavaScript in an existing WebView.
 pub fn evaluate_javascript(handle: &WebViewHandle, script: &str) -> Result<(), String> {
     #[cfg(target_os = "ios")]
-    { ios::evaluate_javascript(handle, script) }
+    {
+        ios::evaluate_javascript(handle, script)
+    }
     #[cfg(target_os = "android")]
-    { android::evaluate_javascript(handle, script) }
+    {
+        android::evaluate_javascript(handle, script)
+    }
     #[cfg(not(any(target_os = "ios", target_os = "android")))]
-    { let _ = (handle, script); Err("webview is only available on iOS and Android".into()) }
+    {
+        let _ = (handle, script);
+        Err("webview is only available on iOS and Android".into())
+    }
 }
 
 /// Navigate the WebView back one page in its history.
 pub fn go_back(handle: &WebViewHandle) -> Result<(), String> {
     #[cfg(target_os = "ios")]
-    { ios::go_back(handle) }
+    {
+        ios::go_back(handle)
+    }
     #[cfg(target_os = "android")]
-    { android::go_back(handle) }
+    {
+        android::go_back(handle)
+    }
     #[cfg(not(any(target_os = "ios", target_os = "android")))]
-    { let _ = handle; Err("webview is only available on iOS and Android".into()) }
+    {
+        let _ = handle;
+        Err("webview is only available on iOS and Android".into())
+    }
 }
 
 /// Reload the current page in the WebView.
 pub fn reload(handle: &WebViewHandle) -> Result<(), String> {
     #[cfg(target_os = "ios")]
-    { ios::reload(handle) }
+    {
+        ios::reload(handle)
+    }
     #[cfg(target_os = "android")]
-    { android::reload(handle) }
+    {
+        android::reload(handle)
+    }
     #[cfg(not(any(target_os = "ios", target_os = "android")))]
-    { let _ = handle; Err("webview is only available on iOS and Android".into()) }
+    {
+        let _ = handle;
+        Err("webview is only available on iOS and Android".into())
+    }
 }
 
 /// Stop loading the current page in the WebView.
 pub fn stop_loading(handle: &WebViewHandle) -> Result<(), String> {
     #[cfg(target_os = "ios")]
-    { ios::stop_loading(handle) }
+    {
+        ios::stop_loading(handle)
+    }
     #[cfg(target_os = "android")]
-    { android::stop_loading(handle) }
+    {
+        android::stop_loading(handle)
+    }
     #[cfg(not(any(target_os = "ios", target_os = "android")))]
-    { let _ = handle; Err("webview is only available on iOS and Android".into()) }
+    {
+        let _ = handle;
+        Err("webview is only available on iOS and Android".into())
+    }
 }
 
 /// Dismiss / destroy a WebView.
 pub fn dismiss(handle: WebViewHandle) -> Result<(), String> {
     #[cfg(target_os = "ios")]
-    { ios::dismiss(handle) }
+    {
+        ios::dismiss(handle)
+    }
     #[cfg(target_os = "android")]
-    { android::dismiss(handle) }
+    {
+        android::dismiss(handle)
+    }
     #[cfg(not(any(target_os = "ios", target_os = "android")))]
-    { let _ = handle; Err("webview is only available on iOS and Android".into()) }
+    {
+        let _ = handle;
+        Err("webview is only available on iOS and Android".into())
+    }
 }
 
 /// Opaque handle to a native WebView instance.

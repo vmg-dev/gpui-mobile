@@ -8,10 +8,10 @@
 //!
 //! Feature-gated behind `file_selector`.
 
-#[cfg(target_os = "ios")]
-mod ios;
 #[cfg(target_os = "android")]
 mod android;
+#[cfg(target_os = "ios")]
+mod ios;
 
 /// A group of file type filters.
 ///
@@ -63,11 +63,18 @@ pub struct SelectedFile {
 /// Returns `Ok(None)` if the user cancelled.
 pub fn open_file(options: &OpenFileOptions) -> Result<Option<SelectedFile>, String> {
     #[cfg(target_os = "ios")]
-    { ios::open_file(options) }
+    {
+        ios::open_file(options)
+    }
     #[cfg(target_os = "android")]
-    { android::open_file(options) }
+    {
+        android::open_file(options)
+    }
     #[cfg(not(any(target_os = "ios", target_os = "android")))]
-    { let _ = options; Err("file_selector is only available on iOS and Android".into()) }
+    {
+        let _ = options;
+        Err("file_selector is only available on iOS and Android".into())
+    }
 }
 
 /// Open a file picker to select multiple files.
@@ -75,11 +82,18 @@ pub fn open_file(options: &OpenFileOptions) -> Result<Option<SelectedFile>, Stri
 /// Returns an empty Vec if the user cancelled.
 pub fn open_files(options: &OpenFileOptions) -> Result<Vec<SelectedFile>, String> {
     #[cfg(target_os = "ios")]
-    { ios::open_files(options) }
+    {
+        ios::open_files(options)
+    }
     #[cfg(target_os = "android")]
-    { android::open_files(options) }
+    {
+        android::open_files(options)
+    }
     #[cfg(not(any(target_os = "ios", target_os = "android")))]
-    { let _ = options; Err("file_selector is only available on iOS and Android".into()) }
+    {
+        let _ = options;
+        Err("file_selector is only available on iOS and Android".into())
+    }
 }
 
 /// Open a save dialog to get a file path from the user.
@@ -87,11 +101,18 @@ pub fn open_files(options: &OpenFileOptions) -> Result<Vec<SelectedFile>, String
 /// Returns `Ok(None)` if the user cancelled.
 pub fn get_save_path(options: &SaveFileOptions) -> Result<Option<String>, String> {
     #[cfg(target_os = "ios")]
-    { ios::get_save_path(options) }
+    {
+        ios::get_save_path(options)
+    }
     #[cfg(target_os = "android")]
-    { android::get_save_path(options) }
+    {
+        android::get_save_path(options)
+    }
     #[cfg(not(any(target_os = "ios", target_os = "android")))]
-    { let _ = options; Err("file_selector is only available on iOS and Android".into()) }
+    {
+        let _ = options;
+        Err("file_selector is only available on iOS and Android".into())
+    }
 }
 
 /// Open a directory picker.
@@ -99,9 +120,16 @@ pub fn get_save_path(options: &SaveFileOptions) -> Result<Option<String>, String
 /// Returns `Ok(None)` if the user cancelled.
 pub fn get_directory_path(initial_directory: Option<&str>) -> Result<Option<String>, String> {
     #[cfg(target_os = "ios")]
-    { ios::get_directory_path(initial_directory) }
+    {
+        ios::get_directory_path(initial_directory)
+    }
     #[cfg(target_os = "android")]
-    { android::get_directory_path(initial_directory) }
+    {
+        android::get_directory_path(initial_directory)
+    }
     #[cfg(not(any(target_os = "ios", target_os = "android")))]
-    { let _ = initial_directory; Err("file_selector is only available on iOS and Android".into()) }
+    {
+        let _ = initial_directory;
+        Err("file_selector is only available on iOS and Android".into())
+    }
 }

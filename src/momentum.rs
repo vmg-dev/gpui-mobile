@@ -498,7 +498,10 @@ mod tests {
 
         assert!(!scroller.is_active());
         assert!(total_dy > 200.0, "total_dy={total_dy} should be > 200 px");
-        assert!(frame_count > 20, "should have run for many frames, got {frame_count}");
+        assert!(
+            frame_count > 20,
+            "should have run for many frames, got {frame_count}"
+        );
 
         // Verify overall deceleration: the average delta in the first
         // quarter of frames should be larger than the last quarter.

@@ -1,9 +1,9 @@
 //! Deep linking — handle incoming URLs and universal links.
 
-#[cfg(target_os = "ios")]
-pub(crate) mod ios;
 #[cfg(target_os = "android")]
 mod android;
+#[cfg(target_os = "ios")]
+pub(crate) mod ios;
 
 use std::sync::Mutex;
 
@@ -27,19 +27,31 @@ pub(crate) fn notify_deep_link(url: &str) {
 /// Get the initial deep link URL that launched the app (if any).
 pub fn get_initial_link() -> Result<Option<String>, String> {
     #[cfg(target_os = "ios")]
-    { ios::get_initial_link() }
+    {
+        ios::get_initial_link()
+    }
     #[cfg(target_os = "android")]
-    { android::get_initial_link() }
+    {
+        android::get_initial_link()
+    }
     #[cfg(not(any(target_os = "ios", target_os = "android")))]
-    { Ok(None) }
+    {
+        Ok(None)
+    }
 }
 
 /// Get the latest deep link URL received while the app was running.
 pub fn get_latest_link() -> Option<String> {
     #[cfg(target_os = "ios")]
-    { ios::get_latest_link() }
+    {
+        ios::get_latest_link()
+    }
     #[cfg(target_os = "android")]
-    { android::get_latest_link() }
+    {
+        android::get_latest_link()
+    }
     #[cfg(not(any(target_os = "ios", target_os = "android")))]
-    { None }
+    {
+        None
+    }
 }

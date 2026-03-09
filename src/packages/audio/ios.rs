@@ -3,8 +3,8 @@ use objc::runtime::Object;
 use objc::{class, msg_send, sel, sel_impl};
 use std::collections::HashMap;
 use std::ffi::c_void;
-use std::sync::Mutex;
 use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::Mutex;
 
 /// Tracks whether each player was explicitly started (to distinguish Paused from Ready).
 struct PlayerEntry {
@@ -23,7 +23,10 @@ fn with_players<T>(f: impl FnOnce(&mut HashMap<u32, PlayerEntry>) -> T) -> T {
     f(map)
 }
 
-fn with_player<T>(id: u32, f: impl FnOnce(&mut PlayerEntry) -> Result<T, String>) -> Result<T, String> {
+fn with_player<T>(
+    id: u32,
+    f: impl FnOnce(&mut PlayerEntry) -> Result<T, String>,
+) -> Result<T, String> {
     let mut guard = PLAYERS.lock().unwrap();
     let map = guard.get_or_insert_with(HashMap::new);
     match map.get_mut(&id) {
@@ -37,10 +40,13 @@ pub fn create() -> Result<u32, String> {
     // We don't create the AVPlayer yet — it is created when a URL or file is set.
     // Store a null placeholder so the id is registered.
     with_players(|map| {
-        map.insert(id, PlayerEntry {
-            player: std::ptr::null_mut(),
-            started: false,
-        });
+        map.insert(
+            id,
+            PlayerEntry {
+                player: std::ptr::null_mut(),
+                started: false,
+            },
+        );
     });
     Ok(id)
 }
@@ -203,7 +209,7 @@ pub fn set_loop_mode(id: u32, mode: LoopMode) -> Result<(), String> {
             // advance, then rely on the caller to observe completion if needed.
             // AVPlayerActionAtItemEnd: .none = 2, .pause = 1
             let action: i64 = match mode {
-                LoopMode::Off => 1, // AVPlayerActionAtItemEndPause
+                LoopMode::Off => 1,                 // AVPlayerActionAtItemEndPause
                 LoopMode::One | LoopMode::All => 0, // AVPlayerActionAtItemEndNone — we'll handle seek-to-start
             };
             let _: () = msg_send![entry.player, setActionAtItemEnd: action];
@@ -371,5 +377,9 @@ unsafe fn get_duration_from_player(player: *mut Object) -> u64 {
     }
     let duration: CMTime = msg_send![item, duration];
     let ms = cmtime_to_ms(duration);
-    if ms < 0 { 0 } else { ms as u64 }
+    if ms < 0 {
+        0
+    } else {
+        ms as u64
+    }
 }

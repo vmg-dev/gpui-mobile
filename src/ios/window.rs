@@ -15,9 +15,9 @@ use super::IosDisplay;
 use crate::momentum::{MomentumScroller, VelocityTracker};
 use gpui::{
     point, px, size, AnyWindowHandle, AtlasKey, AtlasTextureId, AtlasTextureKind, AtlasTile,
-    Bounds, Capslock, DevicePixels, DispatchEventResult, GpuSpecs, Modifiers, Pixels, PlatformAtlas,
-    PlatformDisplay, PlatformInput, PlatformInputHandler, PlatformWindow, Point, PromptButton,
-    PromptLevel, RequestFrameOptions, Scene, Size, TileId, WindowAppearance,
+    Bounds, Capslock, DevicePixels, DispatchEventResult, GpuSpecs, Modifiers, Pixels,
+    PlatformAtlas, PlatformDisplay, PlatformInput, PlatformInputHandler, PlatformWindow, Point,
+    PromptButton, PromptLevel, RequestFrameOptions, Scene, Size, TileId, WindowAppearance,
     WindowBackgroundAppearance, WindowBounds, WindowControlArea, WindowParams,
 };
 use gpui_wgpu::{WgpuContext, WgpuRenderer, WgpuSurfaceConfig};
@@ -58,10 +58,7 @@ fn register_view_controller_class() -> &'static Class {
         let mut decl = ClassDecl::new("GPUIViewController", superclass).unwrap();
 
         // Override preferredStatusBarStyle
-        extern "C" fn preferred_status_bar_style(
-            _this: &Object,
-            _sel: Sel,
-        ) -> isize {
+        extern "C" fn preferred_status_bar_style(_this: &Object, _sel: Sel) -> isize {
             let style = STATUS_BAR_STYLE.load(std::sync::atomic::Ordering::Relaxed);
             if style == 1 {
                 1 // UIStatusBarStyleLightContent
@@ -251,8 +248,8 @@ fn register_text_input_view_class() -> &'static Class {
 
         // UITextInputTraits property storage — UIView doesn't provide these,
         // but iOS reads them from the first responder to configure the keyboard.
-        decl.add_ivar::<isize>("_keyboardType");           // UIKeyboardType
-        decl.add_ivar::<isize>("_autocorrectionType");     // UITextAutocorrectionType
+        decl.add_ivar::<isize>("_keyboardType"); // UIKeyboardType
+        decl.add_ivar::<isize>("_autocorrectionType"); // UITextAutocorrectionType
         decl.add_ivar::<isize>("_autocapitalizationType"); // UITextAutocapitalizationType
 
         // --- UIKeyInput protocol methods ---
@@ -296,19 +293,25 @@ fn register_text_input_view_class() -> &'static Class {
             unsafe { *this.get_ivar::<isize>("_keyboardType") }
         }
         extern "C" fn set_keyboard_type(this: &mut Object, _sel: Sel, val: isize) {
-            unsafe { this.set_ivar::<isize>("_keyboardType", val); }
+            unsafe {
+                this.set_ivar::<isize>("_keyboardType", val);
+            }
         }
         extern "C" fn get_autocorrection_type(this: &Object, _sel: Sel) -> isize {
             unsafe { *this.get_ivar::<isize>("_autocorrectionType") }
         }
         extern "C" fn set_autocorrection_type(this: &mut Object, _sel: Sel, val: isize) {
-            unsafe { this.set_ivar::<isize>("_autocorrectionType", val); }
+            unsafe {
+                this.set_ivar::<isize>("_autocorrectionType", val);
+            }
         }
         extern "C" fn get_autocapitalization_type(this: &Object, _sel: Sel) -> isize {
             unsafe { *this.get_ivar::<isize>("_autocapitalizationType") }
         }
         extern "C" fn set_autocapitalization_type(this: &mut Object, _sel: Sel, val: isize) {
-            unsafe { this.set_ivar::<isize>("_autocapitalizationType", val); }
+            unsafe {
+                this.set_ivar::<isize>("_autocapitalizationType", val);
+            }
         }
 
         unsafe {
@@ -694,8 +697,7 @@ impl IosWindow {
                 if frame_value.is_null() {
                     return;
                 }
-                let frame: core_graphics::geometry::CGRect =
-                    msg_send![frame_value, CGRectValue];
+                let frame: core_graphics::geometry::CGRect = msg_send![frame_value, CGRectValue];
                 let height = frame.size.height as f32;
                 log::info!("GPUI iOS: Keyboard will show, height={}", height);
                 crate::set_keyboard_height(height);
@@ -987,10 +989,7 @@ impl IosWindow {
                 if fling_ended {
                     callback(PlatformInput::ScrollWheel(gpui::ScrollWheelEvent {
                         position,
-                        delta: gpui::ScrollDelta::Pixels(gpui::point(
-                            gpui::px(0.0),
-                            gpui::px(0.0),
-                        )),
+                        delta: gpui::ScrollDelta::Pixels(gpui::point(gpui::px(0.0), gpui::px(0.0))),
                         modifiers,
                         touch_phase: gpui::TouchPhase::Ended,
                     }));
@@ -1027,13 +1026,17 @@ impl IosWindow {
             use crate::KeyboardType;
             let kb_type: isize = match keyboard_type {
                 KeyboardType::Default => 0,      // UIKeyboardTypeDefault
-                KeyboardType::EmailAddress => 7,  // UIKeyboardTypeEmailAddress
-                KeyboardType::Phone => 5,         // UIKeyboardTypePhonePad
-                KeyboardType::NumberPad => 4,     // UIKeyboardTypeNumberPad
-                KeyboardType::URL => 3,           // UIKeyboardTypeURL
-                KeyboardType::Decimal => 8,       // UIKeyboardTypeDecimalPad
+                KeyboardType::EmailAddress => 7, // UIKeyboardTypeEmailAddress
+                KeyboardType::Phone => 5,        // UIKeyboardTypePhonePad
+                KeyboardType::NumberPad => 4,    // UIKeyboardTypeNumberPad
+                KeyboardType::URL => 3,          // UIKeyboardTypeURL
+                KeyboardType::Decimal => 8,      // UIKeyboardTypeDecimalPad
             };
-            log::info!("GPUI iOS: text_input_view={:p}, setKeyboardType: {}", self.text_input_view, kb_type);
+            log::info!(
+                "GPUI iOS: text_input_view={:p}, setKeyboardType: {}",
+                self.text_input_view,
+                kb_type
+            );
             if self.text_input_view.is_null() {
                 log::error!("GPUI iOS: text_input_view is NULL!");
                 return;
@@ -1176,10 +1179,18 @@ impl IosWindow {
         // global text input callback so TextField-based components receive them.
         if is_key_down {
             match key_code {
-                0x50 => { crate::dispatch_text_input("\x1b[D"); } // Left arrow
-                0x4F => { crate::dispatch_text_input("\x1b[C"); } // Right arrow
-                0x4A => { crate::dispatch_text_input("\x1b[H"); } // Home
-                0x4D => { crate::dispatch_text_input("\x1b[F"); } // End
+                0x50 => {
+                    crate::dispatch_text_input("\x1b[D");
+                } // Left arrow
+                0x4F => {
+                    crate::dispatch_text_input("\x1b[C");
+                } // Right arrow
+                0x4A => {
+                    crate::dispatch_text_input("\x1b[H");
+                } // Home
+                0x4D => {
+                    crate::dispatch_text_input("\x1b[F");
+                } // End
                 _ => {}
             }
         }
@@ -1234,8 +1245,10 @@ impl IosWindow {
 
             log::info!(
                 "GPUI iOS: Layout changed — {:?} @{:.1}x → {:?} @{:.1}x",
-                old_bounds.size, old_scale,
-                new_size, new_scale,
+                old_bounds.size,
+                old_scale,
+                new_size,
+                new_scale,
             );
 
             // Update stored bounds (in logical pixels, matching GPUI convention).
@@ -1257,10 +1270,8 @@ impl IosWindow {
             {
                 let mut guard = self.renderer.lock();
                 if let Some(renderer) = guard.as_mut() {
-                    renderer.update_drawable_size(size(
-                        DevicePixels(pixel_w),
-                        DevicePixels(pixel_h),
-                    ));
+                    renderer
+                        .update_drawable_size(size(DevicePixels(pixel_w), DevicePixels(pixel_h)));
                 }
             }
 

@@ -14,14 +14,14 @@ extern "C" {}
 // ── Session state ───────────────────────────────────────────────────────────
 
 struct SessionState {
-    session: *mut Object,         // AVCaptureSession
-    device: *mut Object,          // AVCaptureDevice
-    device_input: *mut Object,    // AVCaptureDeviceInput
-    photo_output: *mut Object,    // AVCapturePhotoOutput
-    video_output: *mut Object,    // AVCaptureMovieFileOutput (may be null)
-    preview_layer: *mut Object,   // AVCaptureVideoPreviewLayer (may be null)
+    session: *mut Object,       // AVCaptureSession
+    device: *mut Object,        // AVCaptureDevice
+    device_input: *mut Object,  // AVCaptureDeviceInput
+    photo_output: *mut Object,  // AVCapturePhotoOutput
+    video_output: *mut Object,  // AVCaptureMovieFileOutput (may be null)
+    preview_layer: *mut Object, // AVCaptureVideoPreviewLayer (may be null)
     _enable_audio: bool,
-    _audio_input: *mut Object,    // AVCaptureDeviceInput for audio (may be null)
+    _audio_input: *mut Object, // AVCaptureDeviceInput for audio (may be null)
 }
 
 // SAFETY: all pointers are ObjC objects accessed on the main thread or under lock
@@ -62,7 +62,8 @@ fn photo_delegate_class() -> &'static Class {
             // captureOutput:didFinishProcessingPhoto:error:
             decl.add_method(
                 sel!(captureOutput:didFinishProcessingPhoto:error:),
-                photo_did_finish as extern "C" fn(&Object, Sel, *mut Object, *mut Object, *mut Object),
+                photo_did_finish
+                    as extern "C" fn(&Object, Sel, *mut Object, *mut Object, *mut Object),
             );
         }
 
@@ -83,7 +84,9 @@ extern "C" fn photo_did_finish(
             let desc: *mut Object = msg_send![error, localizedDescription];
             let cstr: *const std::ffi::c_char = msg_send![desc, UTF8String];
             let msg = if !cstr.is_null() {
-                std::ffi::CStr::from_ptr(cstr).to_string_lossy().into_owned()
+                std::ffi::CStr::from_ptr(cstr)
+                    .to_string_lossy()
+                    .into_owned()
             } else {
                 "Unknown capture error".to_string()
             };
@@ -152,7 +155,15 @@ fn video_delegate_class() -> &'static Class {
             // captureOutput:didFinishRecordingToOutputFileAtURL:fromConnections:error:
             decl.add_method(
                 sel!(captureOutput:didFinishRecordingToOutputFileAtURL:fromConnections:error:),
-                video_did_finish as extern "C" fn(&Object, Sel, *mut Object, *mut Object, *mut Object, *mut Object),
+                video_did_finish
+                    as extern "C" fn(
+                        &Object,
+                        Sel,
+                        *mut Object,
+                        *mut Object,
+                        *mut Object,
+                        *mut Object,
+                    ),
             );
         }
 
@@ -174,7 +185,9 @@ extern "C" fn video_did_finish(
             let desc: *mut Object = msg_send![error, localizedDescription];
             let cstr: *const std::ffi::c_char = msg_send![desc, UTF8String];
             let msg = if !cstr.is_null() {
-                std::ffi::CStr::from_ptr(cstr).to_string_lossy().into_owned()
+                std::ffi::CStr::from_ptr(cstr)
+                    .to_string_lossy()
+                    .into_owned()
             } else {
                 "Unknown recording error".to_string()
             };
@@ -185,7 +198,9 @@ extern "C" fn video_did_finish(
             let path_obj: *mut Object = msg_send![url, path];
             let cstr: *const std::ffi::c_char = msg_send![path_obj, UTF8String];
             if !cstr.is_null() {
-                let path = std::ffi::CStr::from_ptr(cstr).to_string_lossy().into_owned();
+                let path = std::ffi::CStr::from_ptr(cstr)
+                    .to_string_lossy()
+                    .into_owned();
                 Ok(RecordedVideo { path })
             } else {
                 Err("Failed to get video path".to_string())
@@ -211,15 +226,24 @@ unsafe fn nsstring(s: &str) -> *mut Object {
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy)]
-struct CGPoint { x: f64, y: f64 }
+struct CGPoint {
+    x: f64,
+    y: f64,
+}
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy)]
-struct CGSize { width: f64, height: f64 }
+struct CGSize {
+    width: f64,
+    height: f64,
+}
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy)]
-struct CGRect { origin: CGPoint, size: CGSize }
+struct CGRect {
+    origin: CGPoint,
+    size: CGSize,
+}
 
 fn resolution_to_preset(resolution: ResolutionPreset) -> &'static str {
     match resolution {
@@ -315,7 +339,9 @@ pub fn available_cameras() -> Result<Vec<CameraDescription>, String> {
             let unique_id: *mut Object = msg_send![device, uniqueID];
             let cstr: *const std::ffi::c_char = msg_send![unique_id, UTF8String];
             let name = if !cstr.is_null() {
-                std::ffi::CStr::from_ptr(cstr).to_string_lossy().into_owned()
+                std::ffi::CStr::from_ptr(cstr)
+                    .to_string_lossy()
+                    .into_owned()
             } else {
                 format!("camera_{i}")
             };
@@ -434,16 +460,19 @@ pub fn create_camera(
         let _: () = msg_send![session, commitConfiguration];
 
         let id = next_id();
-        sessions().as_mut().unwrap().insert(id, SessionState {
-            session,
-            device,
-            device_input: input,
-            photo_output,
-            video_output,
-            preview_layer: std::ptr::null_mut(),
-            _enable_audio: enable_audio,
-            _audio_input: audio_input,
-        });
+        sessions().as_mut().unwrap().insert(
+            id,
+            SessionState {
+                session,
+                device,
+                device_input: input,
+                photo_output,
+                video_output,
+                preview_layer: std::ptr::null_mut(),
+                _enable_audio: enable_audio,
+                _audio_input: audio_input,
+            },
+        );
 
         Ok(CameraHandle { id })
     }
@@ -452,7 +481,9 @@ pub fn create_camera(
 pub fn start_preview(handle: &CameraHandle) -> Result<(), String> {
     unsafe {
         let mut guard = sessions();
-        let state = guard.as_mut().unwrap()
+        let state = guard
+            .as_mut()
+            .unwrap()
             .get_mut(&handle.id)
             .ok_or("Invalid camera handle")?;
 
@@ -494,7 +525,9 @@ pub fn start_preview(handle: &CameraHandle) -> Result<(), String> {
 pub fn stop_preview(handle: &CameraHandle) -> Result<(), String> {
     unsafe {
         let mut guard = sessions();
-        let state = guard.as_mut().unwrap()
+        let state = guard
+            .as_mut()
+            .unwrap()
             .get_mut(&handle.id)
             .ok_or("Invalid camera handle")?;
 
@@ -515,7 +548,9 @@ pub fn take_picture(handle: &CameraHandle) -> Result<CapturedImage, String> {
 
     unsafe {
         let guard = sessions();
-        let state = guard.as_ref().unwrap()
+        let state = guard
+            .as_ref()
+            .unwrap()
             .get(&handle.id)
             .ok_or("Invalid camera handle")?;
 
@@ -538,13 +573,16 @@ pub fn take_picture(handle: &CameraHandle) -> Result<CapturedImage, String> {
     }
 
     // Wait for result
-    rx.recv().map_err(|_| "Photo capture channel closed".to_string())?
+    rx.recv()
+        .map_err(|_| "Photo capture channel closed".to_string())?
 }
 
 pub fn start_video_recording(handle: &CameraHandle) -> Result<(), String> {
     unsafe {
         let guard = sessions();
-        let state = guard.as_ref().unwrap()
+        let state = guard
+            .as_ref()
+            .unwrap()
             .get(&handle.id)
             .ok_or("Invalid camera handle")?;
 
@@ -584,7 +622,9 @@ pub fn stop_video_recording(handle: &CameraHandle) -> Result<RecordedVideo, Stri
 
     unsafe {
         let guard = sessions();
-        let state = guard.as_ref().unwrap()
+        let state = guard
+            .as_ref()
+            .unwrap()
             .get(&handle.id)
             .ok_or("Invalid camera handle")?;
 
@@ -595,13 +635,16 @@ pub fn stop_video_recording(handle: &CameraHandle) -> Result<RecordedVideo, Stri
         let _: () = msg_send![state.video_output, stopRecording];
     }
 
-    rx.recv().map_err(|_| "Video recording channel closed".to_string())?
+    rx.recv()
+        .map_err(|_| "Video recording channel closed".to_string())?
 }
 
 pub fn set_flash_mode(handle: &CameraHandle, mode: FlashMode) -> Result<(), String> {
     unsafe {
         let guard = sessions();
-        let state = guard.as_ref().unwrap()
+        let state = guard
+            .as_ref()
+            .unwrap()
             .get(&handle.id)
             .ok_or("Invalid camera handle")?;
 
@@ -614,7 +657,8 @@ pub fn set_flash_mode(handle: &CameraHandle, mode: FlashMode) -> Result<(), Stri
                 return Err("Device does not have a torch".into());
             }
             let mut err: *mut Object = std::ptr::null_mut();
-            let locked: BOOL = msg_send![device, lockForConfiguration: &mut err as *mut *mut Object];
+            let locked: BOOL =
+                msg_send![device, lockForConfiguration: &mut err as *mut *mut Object];
             if locked != YES {
                 return Err("Failed to lock device for configuration".into());
             }
@@ -627,7 +671,8 @@ pub fn set_flash_mode(handle: &CameraHandle, mode: FlashMode) -> Result<(), Stri
                 let torch_mode: i64 = msg_send![device, torchMode];
                 if torch_mode != 0 {
                     let mut err: *mut Object = std::ptr::null_mut();
-                    let locked: BOOL = msg_send![device, lockForConfiguration: &mut err as *mut *mut Object];
+                    let locked: BOOL =
+                        msg_send![device, lockForConfiguration: &mut err as *mut *mut Object];
                     if locked == YES {
                         let _: () = msg_send![device, setTorchMode: 0i64]; // AVCaptureTorchModeOff
                         let _: () = msg_send![device, unlockForConfiguration];
@@ -645,7 +690,9 @@ pub fn set_flash_mode(handle: &CameraHandle, mode: FlashMode) -> Result<(), Stri
 pub fn set_focus_mode(handle: &CameraHandle, mode: FocusMode) -> Result<(), String> {
     unsafe {
         let guard = sessions();
-        let state = guard.as_ref().unwrap()
+        let state = guard
+            .as_ref()
+            .unwrap()
             .get(&handle.id)
             .ok_or("Invalid camera handle")?;
 
@@ -676,7 +723,9 @@ pub fn set_focus_mode(handle: &CameraHandle, mode: FocusMode) -> Result<(), Stri
 pub fn set_exposure_mode(handle: &CameraHandle, mode: ExposureMode) -> Result<(), String> {
     unsafe {
         let guard = sessions();
-        let state = guard.as_ref().unwrap()
+        let state = guard
+            .as_ref()
+            .unwrap()
             .get(&handle.id)
             .ok_or("Invalid camera handle")?;
 
@@ -712,7 +761,9 @@ pub fn get_min_zoom(_handle: &CameraHandle) -> Result<f64, String> {
 pub fn get_max_zoom(handle: &CameraHandle) -> Result<f64, String> {
     unsafe {
         let guard = sessions();
-        let state = guard.as_ref().unwrap()
+        let state = guard
+            .as_ref()
+            .unwrap()
             .get(&handle.id)
             .ok_or("Invalid camera handle")?;
 
@@ -724,7 +775,9 @@ pub fn get_max_zoom(handle: &CameraHandle) -> Result<f64, String> {
 pub fn set_zoom(handle: &CameraHandle, zoom: f64) -> Result<(), String> {
     unsafe {
         let guard = sessions();
-        let state = guard.as_ref().unwrap()
+        let state = guard
+            .as_ref()
+            .unwrap()
             .get(&handle.id)
             .ok_or("Invalid camera handle")?;
 
@@ -753,7 +806,9 @@ pub fn set_camera(handle: &CameraHandle, camera: &CameraDescription) -> Result<(
         }
 
         let mut guard = sessions();
-        let state = guard.as_mut().unwrap()
+        let state = guard
+            .as_mut()
+            .unwrap()
             .get_mut(&handle.id)
             .ok_or("Invalid camera handle")?;
 

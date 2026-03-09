@@ -72,10 +72,7 @@ extern "C" {
         address: *const sockaddr,
     ) -> SCNetworkReachabilityRef;
 
-    fn SCNetworkReachabilityGetFlags(
-        target: SCNetworkReachabilityRef,
-        flags: *mut u32,
-    ) -> bool;
+    fn SCNetworkReachabilityGetFlags(target: SCNetworkReachabilityRef, flags: *mut u32) -> bool;
 
     fn CFRelease(cf: *const std::ffi::c_void);
 }

@@ -6,22 +6,33 @@
 //!
 //! Feature-gated behind `maps_launcher`.
 
-#[cfg(target_os = "ios")]
-mod ios;
 #[cfg(target_os = "android")]
 mod android;
+#[cfg(target_os = "ios")]
+mod ios;
 
 /// Launch maps app showing a specific coordinate.
 ///
 /// If `label` is provided, it will be shown as a marker title at the location.
 /// Returns `Ok(true)` if the maps app was opened successfully.
-pub fn open_coordinates(latitude: f64, longitude: f64, label: Option<&str>) -> Result<bool, String> {
+pub fn open_coordinates(
+    latitude: f64,
+    longitude: f64,
+    label: Option<&str>,
+) -> Result<bool, String> {
     #[cfg(target_os = "ios")]
-    { ios::open_coordinates(latitude, longitude, label) }
+    {
+        ios::open_coordinates(latitude, longitude, label)
+    }
     #[cfg(target_os = "android")]
-    { android::open_coordinates(latitude, longitude, label) }
+    {
+        android::open_coordinates(latitude, longitude, label)
+    }
     #[cfg(not(any(target_os = "ios", target_os = "android")))]
-    { let _ = (latitude, longitude, label); Err("maps_launcher is only available on iOS and Android".into()) }
+    {
+        let _ = (latitude, longitude, label);
+        Err("maps_launcher is only available on iOS and Android".into())
+    }
 }
 
 /// Launch maps app with a search query (e.g. address or place name).
@@ -29,11 +40,18 @@ pub fn open_coordinates(latitude: f64, longitude: f64, label: Option<&str>) -> R
 /// Returns `Ok(true)` if the maps app was opened successfully.
 pub fn open_query(query: &str) -> Result<bool, String> {
     #[cfg(target_os = "ios")]
-    { ios::open_query(query) }
+    {
+        ios::open_query(query)
+    }
     #[cfg(target_os = "android")]
-    { android::open_query(query) }
+    {
+        android::open_query(query)
+    }
     #[cfg(not(any(target_os = "ios", target_os = "android")))]
-    { let _ = query; Err("maps_launcher is only available on iOS and Android".into()) }
+    {
+        let _ = query;
+        Err("maps_launcher is only available on iOS and Android".into())
+    }
 }
 
 /// Launch maps app showing directions from current location to a destination.
@@ -46,11 +64,18 @@ pub fn open_directions(
     dest_label: Option<&str>,
 ) -> Result<bool, String> {
     #[cfg(target_os = "ios")]
-    { ios::open_directions(dest_latitude, dest_longitude, dest_label) }
+    {
+        ios::open_directions(dest_latitude, dest_longitude, dest_label)
+    }
     #[cfg(target_os = "android")]
-    { android::open_directions(dest_latitude, dest_longitude, dest_label) }
+    {
+        android::open_directions(dest_latitude, dest_longitude, dest_label)
+    }
     #[cfg(not(any(target_os = "ios", target_os = "android")))]
-    { let _ = (dest_latitude, dest_longitude, dest_label); Err("maps_launcher is only available on iOS and Android".into()) }
+    {
+        let _ = (dest_latitude, dest_longitude, dest_label);
+        Err("maps_launcher is only available on iOS and Android".into())
+    }
 }
 
 /// Check if a maps app is available on the device.
@@ -58,9 +83,15 @@ pub fn open_directions(
 /// On iOS this always returns `Ok(true)` since Apple Maps is built in.
 pub fn is_available() -> Result<bool, String> {
     #[cfg(target_os = "ios")]
-    { ios::is_available() }
+    {
+        ios::is_available()
+    }
     #[cfg(target_os = "android")]
-    { android::is_available() }
+    {
+        android::is_available()
+    }
     #[cfg(not(any(target_os = "ios", target_os = "android")))]
-    { Err("maps_launcher is only available on iOS and Android".into()) }
+    {
+        Err("maps_launcher is only available on iOS and Android".into())
+    }
 }

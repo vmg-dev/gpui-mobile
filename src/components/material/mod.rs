@@ -253,7 +253,9 @@ pub mod demos {
     pub use super::menu::menu_demo;
     pub use super::navigation_drawer::navigation_drawer_demo;
     pub use super::navigation_rail::navigation_rail_demo;
-    pub use super::progress_indicator::{progress_indicator_demo, progress_indicator_demo_animated};
+    pub use super::progress_indicator::{
+        progress_indicator_demo, progress_indicator_demo_animated,
+    };
     pub use super::scaffold::scaffold_demo;
     pub use super::search_bar::search_bar_demo;
     pub use super::tab_bar::tab_bar_demo;

@@ -1,6 +1,6 @@
 use super::DeviceInfo;
-use objc::{class, msg_send, sel, sel_impl};
 use objc::runtime::Object;
+use objc::{class, msg_send, sel, sel_impl};
 use std::ffi::CStr;
 
 pub fn get_device_info() -> Result<DeviceInfo, String> {

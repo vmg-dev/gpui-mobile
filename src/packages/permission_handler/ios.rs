@@ -52,7 +52,9 @@ pub fn check_permission(permission: Permission) -> Result<PermissionStatus, Stri
             Permission::Camera => check_av_authorization("vide"),
             Permission::Microphone => check_av_authorization("soun"),
             Permission::Photos => check_photos_authorization(),
-            Permission::LocationWhenInUse | Permission::LocationAlways => check_location_authorization(),
+            Permission::LocationWhenInUse | Permission::LocationAlways => {
+                check_location_authorization()
+            }
             Permission::Contacts => check_contacts_authorization(),
             Permission::Calendar => check_event_authorization(0), // EKEntityTypeEvent
             Permission::Reminders => check_event_authorization(1), // EKEntityTypeReminder
@@ -63,8 +65,12 @@ pub fn check_permission(permission: Permission) -> Result<PermissionStatus, Stri
             Permission::Sensors => Ok(PermissionStatus::Granted), // CoreMotion doesn't require explicit permission
             Permission::MediaLibrary => Ok(PermissionStatus::Granted), // Simplified
             // Android-only permissions
-            Permission::Storage | Permission::SystemAlertWindow | Permission::InstallPackages
-            | Permission::AccessNotificationPolicy | Permission::Phone | Permission::Sms
+            Permission::Storage
+            | Permission::SystemAlertWindow
+            | Permission::InstallPackages
+            | Permission::AccessNotificationPolicy
+            | Permission::Phone
+            | Permission::Sms
             | Permission::Audio => Ok(PermissionStatus::Granted),
             Permission::Videos => check_photos_authorization(), // iOS uses Photos framework for videos too
         }
@@ -79,10 +85,10 @@ unsafe fn check_av_authorization(media_type: &str) -> Result<PermissionStatus, S
 
 fn av_status_to_permission(status: i64) -> PermissionStatus {
     match status {
-        0 => PermissionStatus::Denied,     // AVAuthorizationStatusNotDetermined
-        1 => PermissionStatus::Restricted,  // AVAuthorizationStatusRestricted
-        2 => PermissionStatus::Denied,      // AVAuthorizationStatusDenied
-        3 => PermissionStatus::Granted,     // AVAuthorizationStatusAuthorized
+        0 => PermissionStatus::Denied, // AVAuthorizationStatusNotDetermined
+        1 => PermissionStatus::Restricted, // AVAuthorizationStatusRestricted
+        2 => PermissionStatus::Denied, // AVAuthorizationStatusDenied
+        3 => PermissionStatus::Granted, // AVAuthorizationStatusAuthorized
         _ => PermissionStatus::Denied,
     }
 }
@@ -90,14 +96,14 @@ fn av_status_to_permission(status: i64) -> PermissionStatus {
 unsafe fn check_photos_authorization() -> Result<PermissionStatus, String> {
     // PHAuthorizationStatus
     let _status: i64 = msg_send![class!(PHPhotoLibrary), authorizationStatusForAccessLevel: 0i64]; // PHAccessLevelReadWrite=1, but 0 for addOnly
-    // Fallback to the older API
+                                                                                                   // Fallback to the older API
     let status: i64 = msg_send![class!(PHPhotoLibrary), authorizationStatus];
     Ok(match status {
-        0 => PermissionStatus::Denied,     // PHAuthorizationStatusNotDetermined
-        1 => PermissionStatus::Restricted,  // PHAuthorizationStatusRestricted
-        2 => PermissionStatus::Denied,      // PHAuthorizationStatusDenied
-        3 => PermissionStatus::Granted,     // PHAuthorizationStatusAuthorized
-        4 => PermissionStatus::Limited,     // PHAuthorizationStatusLimited
+        0 => PermissionStatus::Denied, // PHAuthorizationStatusNotDetermined
+        1 => PermissionStatus::Restricted, // PHAuthorizationStatusRestricted
+        2 => PermissionStatus::Denied, // PHAuthorizationStatusDenied
+        3 => PermissionStatus::Granted, // PHAuthorizationStatusAuthorized
+        4 => PermissionStatus::Limited, // PHAuthorizationStatusLimited
         _ => PermissionStatus::Denied,
     })
 }
@@ -107,11 +113,11 @@ unsafe fn check_location_authorization() -> Result<PermissionStatus, String> {
     let mgr: *mut Object = msg_send![mgr, init];
     let status: i32 = msg_send![mgr, authorizationStatus];
     Ok(match status {
-        0 => PermissionStatus::Denied,            // kCLAuthorizationStatusNotDetermined
-        1 => PermissionStatus::Restricted,         // kCLAuthorizationStatusRestricted
-        2 => PermissionStatus::PermanentlyDenied,  // kCLAuthorizationStatusDenied
-        3 => PermissionStatus::Granted,            // kCLAuthorizationStatusAuthorizedAlways
-        4 => PermissionStatus::Granted,            // kCLAuthorizationStatusAuthorizedWhenInUse
+        0 => PermissionStatus::Denied, // kCLAuthorizationStatusNotDetermined
+        1 => PermissionStatus::Restricted, // kCLAuthorizationStatusRestricted
+        2 => PermissionStatus::PermanentlyDenied, // kCLAuthorizationStatusDenied
+        3 => PermissionStatus::Granted, // kCLAuthorizationStatusAuthorizedAlways
+        4 => PermissionStatus::Granted, // kCLAuthorizationStatusAuthorizedWhenInUse
         _ => PermissionStatus::Denied,
     })
 }
@@ -119,22 +125,23 @@ unsafe fn check_location_authorization() -> Result<PermissionStatus, String> {
 unsafe fn check_contacts_authorization() -> Result<PermissionStatus, String> {
     let status: i64 = msg_send![class!(CNContactStore), authorizationStatusForEntityType: 0i64]; // CNEntityTypeContacts
     Ok(match status {
-        0 => PermissionStatus::Denied,     // CNAuthorizationStatusNotDetermined
-        1 => PermissionStatus::Restricted,  // CNAuthorizationStatusRestricted
-        2 => PermissionStatus::Denied,      // CNAuthorizationStatusDenied
-        3 => PermissionStatus::Granted,     // CNAuthorizationStatusAuthorized
-        4 => PermissionStatus::Limited,     // CNAuthorizationStatusLimited (iOS 18+)
+        0 => PermissionStatus::Denied, // CNAuthorizationStatusNotDetermined
+        1 => PermissionStatus::Restricted, // CNAuthorizationStatusRestricted
+        2 => PermissionStatus::Denied, // CNAuthorizationStatusDenied
+        3 => PermissionStatus::Granted, // CNAuthorizationStatusAuthorized
+        4 => PermissionStatus::Limited, // CNAuthorizationStatusLimited (iOS 18+)
         _ => PermissionStatus::Denied,
     })
 }
 
 unsafe fn check_event_authorization(entity_type: i64) -> Result<PermissionStatus, String> {
-    let status: i64 = msg_send![class!(EKEventStore), authorizationStatusForEntityType: entity_type];
+    let status: i64 =
+        msg_send![class!(EKEventStore), authorizationStatusForEntityType: entity_type];
     Ok(match status {
-        0 => PermissionStatus::Denied,     // EKAuthorizationStatusNotDetermined
-        1 => PermissionStatus::Restricted,  // EKAuthorizationStatusRestricted
-        2 => PermissionStatus::Denied,      // EKAuthorizationStatusDenied
-        3 => PermissionStatus::Granted,     // EKAuthorizationStatusAuthorized
+        0 => PermissionStatus::Denied, // EKAuthorizationStatusNotDetermined
+        1 => PermissionStatus::Restricted, // EKAuthorizationStatusRestricted
+        2 => PermissionStatus::Denied, // EKAuthorizationStatusDenied
+        3 => PermissionStatus::Granted, // EKAuthorizationStatusAuthorized
         _ => PermissionStatus::Denied,
     })
 }
@@ -143,14 +150,15 @@ unsafe fn check_notification_authorization() -> Result<PermissionStatus, String>
     // UNUserNotificationCenter is async, so we use a sync channel
     let (tx, rx) = mpsc::channel();
 
-    let center: *mut Object = msg_send![class!(UNUserNotificationCenter), currentNotificationCenter];
+    let center: *mut Object =
+        msg_send![class!(UNUserNotificationCenter), currentNotificationCenter];
     let block = block::ConcreteBlock::new(move |settings: *mut Object| {
         let auth_status: i64 = msg_send![settings, authorizationStatus];
         let status = match auth_status {
-            0 => PermissionStatus::Denied,      // UNAuthorizationStatusNotDetermined
-            1 => PermissionStatus::Denied,       // UNAuthorizationStatusDenied
-            2 => PermissionStatus::Granted,      // UNAuthorizationStatusAuthorized
-            3 => PermissionStatus::Provisional,  // UNAuthorizationStatusProvisional
+            0 => PermissionStatus::Denied,  // UNAuthorizationStatusNotDetermined
+            1 => PermissionStatus::Denied,  // UNAuthorizationStatusDenied
+            2 => PermissionStatus::Granted, // UNAuthorizationStatusAuthorized
+            3 => PermissionStatus::Provisional, // UNAuthorizationStatusProvisional
             _ => PermissionStatus::Denied,
         };
         let _ = tx.send(status);
@@ -158,16 +166,17 @@ unsafe fn check_notification_authorization() -> Result<PermissionStatus, String>
     let block = block.copy();
     let _: () = msg_send![center, getNotificationSettingsWithCompletionHandler: &*block];
 
-    rx.recv().map_err(|_| "Failed to get notification settings".to_string())
+    rx.recv()
+        .map_err(|_| "Failed to get notification settings".to_string())
 }
 
 unsafe fn check_bluetooth_authorization() -> Result<PermissionStatus, String> {
     let status: i64 = msg_send![class!(CBManager), authorization];
     Ok(match status {
-        0 => PermissionStatus::Denied,     // CBManagerAuthorizationNotDetermined
-        1 => PermissionStatus::Restricted,  // CBManagerAuthorizationRestricted
-        2 => PermissionStatus::Denied,      // CBManagerAuthorizationDenied
-        3 => PermissionStatus::Granted,     // CBManagerAuthorizationAllowedAlways
+        0 => PermissionStatus::Denied, // CBManagerAuthorizationNotDetermined
+        1 => PermissionStatus::Restricted, // CBManagerAuthorizationRestricted
+        2 => PermissionStatus::Denied, // CBManagerAuthorizationDenied
+        3 => PermissionStatus::Granted, // CBManagerAuthorizationAllowedAlways
         _ => PermissionStatus::Denied,
     })
 }
@@ -175,10 +184,10 @@ unsafe fn check_bluetooth_authorization() -> Result<PermissionStatus, String> {
 unsafe fn check_speech_authorization() -> Result<PermissionStatus, String> {
     let status: i64 = msg_send![class!(SFSpeechRecognizer), authorizationStatus];
     Ok(match status {
-        0 => PermissionStatus::Denied,     // SFSpeechRecognizerAuthorizationStatusNotDetermined
-        1 => PermissionStatus::Denied,      // SFSpeechRecognizerAuthorizationStatusDenied
-        2 => PermissionStatus::Restricted,  // SFSpeechRecognizerAuthorizationStatusRestricted
-        3 => PermissionStatus::Granted,     // SFSpeechRecognizerAuthorizationStatusAuthorized
+        0 => PermissionStatus::Denied, // SFSpeechRecognizerAuthorizationStatusNotDetermined
+        1 => PermissionStatus::Denied, // SFSpeechRecognizerAuthorizationStatusDenied
+        2 => PermissionStatus::Restricted, // SFSpeechRecognizerAuthorizationStatusRestricted
+        3 => PermissionStatus::Granted, // SFSpeechRecognizerAuthorizationStatusAuthorized
         _ => PermissionStatus::Denied,
     })
 }
@@ -186,10 +195,10 @@ unsafe fn check_speech_authorization() -> Result<PermissionStatus, String> {
 unsafe fn check_tracking_authorization() -> Result<PermissionStatus, String> {
     let status: u32 = msg_send![class!(ATTrackingManager), trackingAuthorizationStatus];
     Ok(match status {
-        0 => PermissionStatus::Denied,     // ATTrackingManagerAuthorizationStatusNotDetermined
-        1 => PermissionStatus::Restricted,  // ATTrackingManagerAuthorizationStatusRestricted
-        2 => PermissionStatus::Denied,      // ATTrackingManagerAuthorizationStatusDenied
-        3 => PermissionStatus::Granted,     // ATTrackingManagerAuthorizationStatusAuthorized
+        0 => PermissionStatus::Denied, // ATTrackingManagerAuthorizationStatusNotDetermined
+        1 => PermissionStatus::Restricted, // ATTrackingManagerAuthorizationStatusRestricted
+        2 => PermissionStatus::Denied, // ATTrackingManagerAuthorizationStatusDenied
+        3 => PermissionStatus::Granted, // ATTrackingManagerAuthorizationStatusAuthorized
         _ => PermissionStatus::Denied,
     })
 }
@@ -199,7 +208,10 @@ unsafe fn check_tracking_authorization() -> Result<PermissionStatus, String> {
 pub fn request_permission(permission: Permission) -> Result<PermissionStatus, String> {
     // First check current status
     let current = check_permission(permission)?;
-    if current.is_granted() || current == PermissionStatus::PermanentlyDenied || current == PermissionStatus::Restricted {
+    if current.is_granted()
+        || current == PermissionStatus::PermanentlyDenied
+        || current == PermissionStatus::Restricted
+    {
         return Ok(current);
     }
 
@@ -223,8 +235,12 @@ pub fn request_permission(permission: Permission) -> Result<PermissionStatus, St
             Permission::Sensors => Ok(PermissionStatus::Granted),
             Permission::MediaLibrary => Ok(PermissionStatus::Granted),
             // Android-only
-            Permission::Storage | Permission::SystemAlertWindow | Permission::InstallPackages
-            | Permission::AccessNotificationPolicy | Permission::Phone | Permission::Sms
+            Permission::Storage
+            | Permission::SystemAlertWindow
+            | Permission::InstallPackages
+            | Permission::AccessNotificationPolicy
+            | Permission::Phone
+            | Permission::Sms
             | Permission::Audio => Ok(PermissionStatus::Granted),
             Permission::Videos => request_photos_authorization(),
         }
@@ -250,7 +266,8 @@ unsafe fn request_av_authorization(media_type: &str) -> Result<PermissionStatus,
         completionHandler: &*block
     ];
 
-    rx.recv().map_err(|_| "AV authorization request failed".to_string())
+    rx.recv()
+        .map_err(|_| "AV authorization request failed".to_string())
 }
 
 unsafe fn request_photos_authorization() -> Result<PermissionStatus, String> {
@@ -274,7 +291,8 @@ unsafe fn request_photos_authorization() -> Result<PermissionStatus, String> {
         handler: &*block
     ];
 
-    rx.recv().map_err(|_| "Photos authorization request failed".to_string())
+    rx.recv()
+        .map_err(|_| "Photos authorization request failed".to_string())
 }
 
 unsafe fn request_location_when_in_use() -> Result<PermissionStatus, String> {
@@ -314,7 +332,8 @@ unsafe fn request_contacts_authorization() -> Result<PermissionStatus, String> {
         completionHandler: &*block
     ];
 
-    rx.recv().map_err(|_| "Contacts authorization request failed".to_string())
+    rx.recv()
+        .map_err(|_| "Contacts authorization request failed".to_string())
 }
 
 unsafe fn request_event_authorization(entity_type: i64) -> Result<PermissionStatus, String> {
@@ -337,12 +356,14 @@ unsafe fn request_event_authorization(entity_type: i64) -> Result<PermissionStat
         completion: &*block
     ];
 
-    rx.recv().map_err(|_| "EventKit authorization request failed".to_string())
+    rx.recv()
+        .map_err(|_| "EventKit authorization request failed".to_string())
 }
 
 unsafe fn request_notification_authorization() -> Result<PermissionStatus, String> {
     let (tx, rx) = mpsc::channel();
-    let center: *mut Object = msg_send![class!(UNUserNotificationCenter), currentNotificationCenter];
+    let center: *mut Object =
+        msg_send![class!(UNUserNotificationCenter), currentNotificationCenter];
 
     // UNAuthorizationOptionAlert | UNAuthorizationOptionBadge | UNAuthorizationOptionSound
     let options: u64 = (1 << 0) | (1 << 1) | (1 << 2);
@@ -362,7 +383,8 @@ unsafe fn request_notification_authorization() -> Result<PermissionStatus, Strin
         completionHandler: &*block
     ];
 
-    rx.recv().map_err(|_| "Notification authorization request failed".to_string())
+    rx.recv()
+        .map_err(|_| "Notification authorization request failed".to_string())
 }
 
 unsafe fn request_speech_authorization() -> Result<PermissionStatus, String> {
@@ -384,7 +406,8 @@ unsafe fn request_speech_authorization() -> Result<PermissionStatus, String> {
         requestAuthorization: &*block
     ];
 
-    rx.recv().map_err(|_| "Speech authorization request failed".to_string())
+    rx.recv()
+        .map_err(|_| "Speech authorization request failed".to_string())
 }
 
 unsafe fn request_tracking_authorization() -> Result<PermissionStatus, String> {
@@ -406,12 +429,15 @@ unsafe fn request_tracking_authorization() -> Result<PermissionStatus, String> {
         requestTrackingAuthorizationWithCompletionHandler: &*block
     ];
 
-    rx.recv().map_err(|_| "Tracking authorization request failed".to_string())
+    rx.recv()
+        .map_err(|_| "Tracking authorization request failed".to_string())
 }
 
 // ── Batch request ───────────────────────────────────────────────────────────
 
-pub fn request_permissions(permissions: &[Permission]) -> Result<Vec<(Permission, PermissionStatus)>, String> {
+pub fn request_permissions(
+    permissions: &[Permission],
+) -> Result<Vec<(Permission, PermissionStatus)>, String> {
     let mut results = Vec::with_capacity(permissions.len());
     for &perm in permissions {
         let status = request_permission(perm)?;
@@ -427,7 +453,11 @@ pub fn service_status(permission: Permission) -> Result<ServiceStatus, String> {
         match permission {
             Permission::LocationWhenInUse | Permission::LocationAlways => {
                 let enabled: BOOL = msg_send![class!(CLLocationManager), locationServicesEnabled];
-                Ok(if enabled == YES { ServiceStatus::Enabled } else { ServiceStatus::Disabled })
+                Ok(if enabled == YES {
+                    ServiceStatus::Enabled
+                } else {
+                    ServiceStatus::Disabled
+                })
             }
             Permission::Bluetooth => {
                 // Would need CBCentralManager instance; simplified

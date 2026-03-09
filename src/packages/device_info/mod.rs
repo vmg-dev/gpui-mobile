@@ -1,9 +1,9 @@
 //! Device hardware and OS information.
 
-#[cfg(target_os = "ios")]
-mod ios;
 #[cfg(target_os = "android")]
 mod android;
+#[cfg(target_os = "ios")]
+mod ios;
 
 /// Device hardware and operating system metadata.
 #[derive(Debug, Clone)]

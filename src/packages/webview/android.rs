@@ -103,16 +103,11 @@ pub fn go_back(handle: &WebViewHandle) -> Result<(), String> {
     }
     jni_helpers::with_env(|env| {
         let cls = jni_helpers::find_app_class(env, HELPER_CLASS)?;
-        env.call_static_method(
-            &cls,
-            jni::jni_str!("goBack"),
-            jni::jni_sig!("()V"),
-            &[],
-        )
-        .map_err(|e| {
-            let _ = env.exception_clear();
-            e.to_string()
-        })?;
+        env.call_static_method(&cls, jni::jni_str!("goBack"), jni::jni_sig!("()V"), &[])
+            .map_err(|e| {
+                let _ = env.exception_clear();
+                e.to_string()
+            })?;
         Ok(())
     })
 }
@@ -123,16 +118,11 @@ pub fn reload(handle: &WebViewHandle) -> Result<(), String> {
     }
     jni_helpers::with_env(|env| {
         let cls = jni_helpers::find_app_class(env, HELPER_CLASS)?;
-        env.call_static_method(
-            &cls,
-            jni::jni_str!("reload"),
-            jni::jni_sig!("()V"),
-            &[],
-        )
-        .map_err(|e| {
-            let _ = env.exception_clear();
-            e.to_string()
-        })?;
+        env.call_static_method(&cls, jni::jni_str!("reload"), jni::jni_sig!("()V"), &[])
+            .map_err(|e| {
+                let _ = env.exception_clear();
+                e.to_string()
+            })?;
         Ok(())
     })
 }

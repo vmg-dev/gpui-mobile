@@ -1,7 +1,7 @@
-use std::path::PathBuf;
-use std::ffi::CStr;
-use objc::{msg_send, sel, sel_impl};
 use objc::runtime::Object;
+use objc::{msg_send, sel, sel_impl};
+use std::ffi::CStr;
+use std::path::PathBuf;
 
 pub fn temporary_directory() -> Result<PathBuf, String> {
     unsafe {
@@ -37,8 +37,7 @@ fn search_path_directory(directory: u64) -> Result<PathBuf, String> {
         }
 
         let array = NSSearchPathForDirectoriesInDomains(
-            directory,
-            1, // NSUserDomainMask
+            directory, 1, // NSUserDomainMask
             true,
         );
         if array.is_null() {

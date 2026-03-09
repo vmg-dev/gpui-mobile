@@ -1,6 +1,6 @@
 use super::HapticFeedback;
-use objc::{class, msg_send, sel, sel_impl};
 use objc::runtime::Object;
+use objc::{class, msg_send, sel, sel_impl};
 
 #[link(name = "AudioToolbox", kind = "framework")]
 extern "C" {}
@@ -20,13 +20,13 @@ pub fn vibrate(_duration_ms: u32) -> Result<(), String> {
 pub fn haptic_feedback(feedback: HapticFeedback) -> Result<(), String> {
     unsafe {
         match feedback {
-            HapticFeedback::Light => impact_feedback(0),   // UIImpactFeedbackStyleLight
-            HapticFeedback::Medium => impact_feedback(1),  // UIImpactFeedbackStyleMedium
-            HapticFeedback::Heavy => impact_feedback(2),   // UIImpactFeedbackStyleHeavy
+            HapticFeedback::Light => impact_feedback(0), // UIImpactFeedbackStyleLight
+            HapticFeedback::Medium => impact_feedback(1), // UIImpactFeedbackStyleMedium
+            HapticFeedback::Heavy => impact_feedback(2), // UIImpactFeedbackStyleHeavy
             HapticFeedback::Selection => selection_feedback(),
-            HapticFeedback::Success => notification_feedback(0),  // UINotificationFeedbackTypeSuccess
-            HapticFeedback::Warning => notification_feedback(1),  // UINotificationFeedbackTypeWarning
-            HapticFeedback::Error => notification_feedback(2),    // UINotificationFeedbackTypeError
+            HapticFeedback::Success => notification_feedback(0), // UINotificationFeedbackTypeSuccess
+            HapticFeedback::Warning => notification_feedback(1), // UINotificationFeedbackTypeWarning
+            HapticFeedback::Error => notification_feedback(2),   // UINotificationFeedbackTypeError
         }
     }
 }

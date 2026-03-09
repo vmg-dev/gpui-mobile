@@ -7,7 +7,7 @@ use std::sync::Mutex;
 extern "C" {}
 
 struct RecorderState {
-    recorder: *mut Object,  // AVAudioRecorder
+    recorder: *mut Object, // AVAudioRecorder
     path: String,
     start_time: std::time::Instant,
 }
@@ -55,9 +55,9 @@ pub fn start_recording(config: &RecordingConfig) -> Result<String, String> {
         ];
 
         let format_id: i32 = match config.format {
-            AudioFormat::Aac => 1633772320,  // kAudioFormatMPEG4AAC
-            AudioFormat::Wav => 1819304813,  // kAudioFormatLinearPCM
-            AudioFormat::Amr => 1935764850,  // kAudioFormatAMR (not well supported on iOS)
+            AudioFormat::Aac => 1633772320, // kAudioFormatMPEG4AAC
+            AudioFormat::Wav => 1819304813, // kAudioFormatLinearPCM
+            AudioFormat::Amr => 1935764850, // kAudioFormatAMR (not well supported on iOS)
         };
 
         let values: [*mut Object; 4] = [
@@ -170,7 +170,11 @@ pub fn resume_recording() -> Result<(), String> {
     let state = guard.as_ref().ok_or("Not recording")?;
     unsafe {
         let ok: bool = msg_send![state.recorder, record];
-        if ok { Ok(()) } else { Err("Failed to resume recording".into()) }
+        if ok {
+            Ok(())
+        } else {
+            Err("Failed to resume recording".into())
+        }
     }
 }
 
@@ -217,5 +221,7 @@ unsafe fn objc_string_to_rust(ns: *mut Object) -> String {
     if cstr.is_null() {
         return String::new();
     }
-    std::ffi::CStr::from_ptr(cstr).to_string_lossy().into_owned()
+    std::ffi::CStr::from_ptr(cstr)
+        .to_string_lossy()
+        .into_owned()
 }

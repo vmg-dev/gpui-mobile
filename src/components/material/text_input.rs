@@ -177,12 +177,7 @@ impl<V: 'static> TextInput<V> {
 
         let border_width = if self.focused { 2.0 } else { 1.0 };
 
-        let mut field = div()
-            .id(self.id)
-            .flex()
-            .flex_col()
-            .gap_1()
-            .w_full();
+        let mut field = div().id(self.id).flex().flex_col().gap_1().w_full();
 
         // Label
         if let Some(label) = self.label {
@@ -234,13 +229,7 @@ impl<V: 'static> TextInput<V> {
 
             // Show cursor at end when focused on empty field
             if focused {
-                row = row.child(
-                    div()
-                        .w(px(2.0))
-                        .h(px(16.0))
-                        .bg(rgb(t.primary))
-                        .ml_px(),
-                );
+                row = row.child(div().w(px(2.0)).h(px(16.0)).bg(rgb(t.primary)).ml_px());
             }
             row
         };
@@ -316,9 +305,7 @@ impl<V: 'static> TextInput<V> {
                 .text_color(rgb(text_color));
 
             if !before_sel.is_empty() {
-                row = row.child(
-                    div().child(before_sel.to_string()),
-                );
+                row = row.child(div().child(before_sel.to_string()));
             }
 
             if !selected.is_empty() {
@@ -332,17 +319,10 @@ impl<V: 'static> TextInput<V> {
             }
 
             // Cursor bar at selection edge
-            row = row.child(
-                div()
-                    .w(px(2.0))
-                    .h(px(16.0))
-                    .bg(rgb(t.primary)),
-            );
+            row = row.child(div().w(px(2.0)).h(px(16.0)).bg(rgb(t.primary)));
 
             if !after_sel.is_empty() {
-                row = row.child(
-                    div().child(after_sel.to_string()),
-                );
+                row = row.child(div().child(after_sel.to_string()));
             }
 
             row
@@ -359,23 +339,14 @@ impl<V: 'static> TextInput<V> {
                 .text_color(rgb(text_color));
 
             if !before.is_empty() {
-                row = row.child(
-                    div().child(before.to_string()),
-                );
+                row = row.child(div().child(before.to_string()));
             }
 
             // Cursor bar
-            row = row.child(
-                div()
-                    .w(px(2.0))
-                    .h(px(16.0))
-                    .bg(rgb(t.primary)),
-            );
+            row = row.child(div().w(px(2.0)).h(px(16.0)).bg(rgb(t.primary)));
 
             if !after.is_empty() {
-                row = row.child(
-                    div().child(after.to_string()),
-                );
+                row = row.child(div().child(after.to_string()));
             }
 
             row

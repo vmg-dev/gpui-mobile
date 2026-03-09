@@ -324,10 +324,7 @@ pub fn hide_surface(id: u32) -> Result<(), String> {
             &cls,
             jni::jni_str!("hideSurface"),
             jni::jni_sig!("(Landroid/app/Activity;I)V"),
-            &[
-                JValue::Object(&activity),
-                JValue::Int(id as i32),
-            ],
+            &[JValue::Object(&activity), JValue::Int(id as i32)],
         )
         .map_err(|e| {
             let _ = env.exception_clear();
@@ -345,18 +342,34 @@ fn get_density(env: &mut jni::Env<'_>) -> f32 {
         Err(_) => return 1.0,
     };
     let resources = env
-        .call_method(&activity, jni::jni_str!("getResources"), jni::jni_sig!("()Landroid/content/res/Resources;"), &[])
+        .call_method(
+            &activity,
+            jni::jni_str!("getResources"),
+            jni::jni_sig!("()Landroid/content/res/Resources;"),
+            &[],
+        )
         .and_then(|v| v.l());
     let resources = match resources {
         Ok(r) => r,
-        Err(_) => { std::mem::forget(activity); return 1.0; }
+        Err(_) => {
+            std::mem::forget(activity);
+            return 1.0;
+        }
     };
     let metrics = env
-        .call_method(&resources, jni::jni_str!("getDisplayMetrics"), jni::jni_sig!("()Landroid/util/DisplayMetrics;"), &[])
+        .call_method(
+            &resources,
+            jni::jni_str!("getDisplayMetrics"),
+            jni::jni_sig!("()Landroid/util/DisplayMetrics;"),
+            &[],
+        )
         .and_then(|v| v.l());
     let metrics = match metrics {
         Ok(m) => m,
-        Err(_) => { std::mem::forget(activity); return 1.0; }
+        Err(_) => {
+            std::mem::forget(activity);
+            return 1.0;
+        }
     };
     let density = env
         .get_field(&metrics, jni::jni_str!("density"), jni::jni_sig!("F"))

@@ -45,8 +45,8 @@ use raw_window_handle::{
     AndroidDisplayHandle, AndroidNdkWindowHandle, HasDisplayHandle, HasWindowHandle,
     RawDisplayHandle, RawWindowHandle,
 };
-use std::ptr::NonNull;
 use std::collections::HashMap;
+use std::ptr::NonNull;
 use std::rc::Rc;
 use std::sync::Arc;
 
@@ -215,8 +215,6 @@ struct WindowState {
     active_status_callback: Option<ActiveStatusCallback>,
 }
 
-
-
 // ── AndroidWindow ─────────────────────────────────────────────────────────────
 
 /// A GPUI window on Android.
@@ -274,8 +272,9 @@ impl AndroidWindow {
             scale_factor
         );
 
-        let renderer = Self::create_renderer(&native_window, gpu_context, width, height, transparent)
-            .context("failed to create gpui_wgpu renderer")?;
+        let renderer =
+            Self::create_renderer(&native_window, gpu_context, width, height, transparent)
+                .context("failed to create gpui_wgpu renderer")?;
 
         let id = native_window.ptr().as_ptr() as u64;
 
@@ -363,12 +362,22 @@ impl AndroidWindow {
                 size: gpui::size(gpui::DevicePixels(width), gpui::DevicePixels(height)),
                 transparent,
             };
-            let instance = state.gpu_context.as_ref()
+            let instance = state
+                .gpu_context
+                .as_ref()
                 .ok_or_else(|| anyhow::anyhow!("gpu_context missing during surface replacement"))?
-                .instance.clone();
-            state.renderer.as_mut().unwrap()
+                .instance
+                .clone();
+            state
+                .renderer
+                .as_mut()
+                .unwrap()
                 .replace_surface(&raw, config, &instance)?;
-            log::info!("AndroidWindow::init_window — replaced surface {}×{}", width, height);
+            log::info!(
+                "AndroidWindow::init_window — replaced surface {}×{}",
+                width,
+                height
+            );
         } else {
             // First init or after a full destroy — create a fresh renderer.
             let renderer = if state.gpu_context.is_some() {
@@ -380,12 +389,17 @@ impl AndroidWindow {
                     transparent,
                 )?
             } else {
-                let r = Self::create_renderer(&native_window, gpu_context, width, height, transparent)?;
+                let r =
+                    Self::create_renderer(&native_window, gpu_context, width, height, transparent)?;
                 state.gpu_context = gpu_context.take();
                 r
             };
             state.renderer = Some(renderer);
-            log::info!("AndroidWindow::init_window — created new renderer {}×{}", width, height);
+            log::info!(
+                "AndroidWindow::init_window — created new renderer {}×{}",
+                width,
+                height
+            );
         }
 
         // Store the new native window (drops previous one if any).
@@ -393,7 +407,8 @@ impl AndroidWindow {
         state.width = width;
         state.height = height;
         state.is_active = true;
-        self.active.store(true, std::sync::atomic::Ordering::Relaxed);
+        self.active
+            .store(true, std::sync::atomic::Ordering::Relaxed);
 
         Ok(())
     }
@@ -418,7 +433,8 @@ impl AndroidWindow {
         state.native_window = None;
 
         state.is_active = false;
-        self.active.store(false, std::sync::atomic::Ordering::Relaxed);
+        self.active
+            .store(false, std::sync::atomic::Ordering::Relaxed);
 
         // NOTE: We intentionally do NOT fire the close callback here.
         // On Android, term_window means the surface is being destroyed
@@ -670,7 +686,11 @@ impl AndroidWindow {
         use std::sync::atomic::Ordering;
         let prev = self.active.swap(active, Ordering::Relaxed);
         if prev != active {
-            log::info!("AndroidWindow::set_active({}) — changed from {}", active, prev);
+            log::info!(
+                "AndroidWindow::set_active({}) — changed from {}",
+                active,
+                prev
+            );
             // Take the callback out of the state so we can invoke it WITHOUT
             // holding the window state lock.  The callback wraps a GPUI
             // closure that acquires its own Mutex (and may call back into
@@ -680,7 +700,10 @@ impl AndroidWindow {
                 state.is_active = active;
                 taken_cb = state.active_status_callback.take();
             } else {
-                log::info!("AndroidWindow::set_active({}) — lock busy, skipping", active);
+                log::info!(
+                    "AndroidWindow::set_active({}) — lock busy, skipping",
+                    active
+                );
             }
             // Fire callback outside the lock.
             if let Some(mut cb) = taken_cb {
@@ -912,9 +935,9 @@ impl AndroidWindow {
             ) -> Result<raw_window_handle::DisplayHandle<'_>, raw_window_handle::HandleError>
             {
                 Ok(unsafe {
-                    raw_window_handle::DisplayHandle::borrow_raw(
-                        RawDisplayHandle::Android(AndroidDisplayHandle::new()),
-                    )
+                    raw_window_handle::DisplayHandle::borrow_raw(RawDisplayHandle::Android(
+                        AndroidDisplayHandle::new(),
+                    ))
                 })
             }
         }
@@ -1013,14 +1036,14 @@ impl HasWindowHandle for AndroidPlatformWindow {
     ) -> std::result::Result<raw_window_handle::WindowHandle<'_>, raw_window_handle::HandleError>
     {
         let state = self.window.state.lock();
-        let nw = state.native_window.as_ref()
+        let nw = state
+            .native_window
+            .as_ref()
             .ok_or(raw_window_handle::HandleError::Unavailable)?;
         // Build the handle from the raw pointer.  The pointer remains valid
         // because AndroidWindow holds a NativeWindow reference for as long
         // as this AndroidPlatformWindow (and thus `self`) is alive.
-        let handle = AndroidNdkWindowHandle::new(
-            NonNull::new(nw.ptr().as_ptr().cast()).unwrap(),
-        );
+        let handle = AndroidNdkWindowHandle::new(NonNull::new(nw.ptr().as_ptr().cast()).unwrap());
         let raw = RawWindowHandle::AndroidNdk(handle);
         Ok(unsafe { raw_window_handle::WindowHandle::borrow_raw(raw) })
     }
@@ -1251,8 +1274,8 @@ impl PlatformWindow for AndroidPlatformWindow {
                             // deactivated during step), send the Ended event
                             // now so GPUI knows the gesture is complete.
                             if fling_ended {
-                                let _ =
-                                    guard(gpui::PlatformInput::ScrollWheel(gpui::ScrollWheelEvent {
+                                let _ = guard(gpui::PlatformInput::ScrollWheel(
+                                    gpui::ScrollWheelEvent {
                                         position,
                                         delta: gpui::ScrollDelta::Pixels(gpui::point(
                                             gpui::px(0.0),
@@ -1260,12 +1283,16 @@ impl PlatformWindow for AndroidPlatformWindow {
                                         )),
                                         modifiers: gpui::Modifiers::default(),
                                         touch_phase: gpui::TouchPhase::Ended,
-                                    }));
+                                    },
+                                ));
                             }
                         }
                     } else {
                         // Fling finished — emit a zero-delta Ended event.
-                        let pos = gpui::point(gpui::px(ms.scroller.position_x()), gpui::px(ms.scroller.position_y()));
+                        let pos = gpui::point(
+                            gpui::px(ms.scroller.position_x()),
+                            gpui::px(ms.scroller.position_y()),
+                        );
                         drop(ms);
 
                         if let Some(mut guard) = input_cb.try_lock() {
@@ -1569,7 +1596,7 @@ impl PlatformWindow for AndroidPlatformWindow {
                 // custom TextInput components (PENDING_TEXT) receive it.
                 if key_event.action == AKEY_EVENT_ACTION_DOWN {
                     match key_event.key_code {
-                        67 => crate::dispatch_text_input("\x08"),   // KEYCODE_DEL (backspace)
+                        67 => crate::dispatch_text_input("\x08"), // KEYCODE_DEL (backspace)
                         21 => crate::dispatch_text_input("\x1b[D"), // DPAD_LEFT
                         22 => crate::dispatch_text_input("\x1b[C"), // DPAD_RIGHT
                         122 => crate::dispatch_text_input("\x1b[H"), // MOVE_HOME
@@ -1731,9 +1758,7 @@ impl PlatformWindow for AndroidPlatformWindow {
             let activity = jni_helpers::activity(env)?;
 
             // 1. Get InputMethodManager
-            let service_name = env
-                .new_string("input_method")
-                .map_err(|e| e.to_string())?;
+            let service_name = env.new_string("input_method").map_err(|e| e.to_string())?;
             let imm = env
                 .call_method(
                     &activity,
@@ -1794,7 +1819,12 @@ impl PlatformWindow for AndroidPlatformWindow {
 
             // 3. Get decor view: activity.getWindow().getDecorView()
             let window = env
-                .call_method(&activity, jni::jni_str!("getWindow"), jni::jni_sig!("()Landroid/view/Window;"), &[])
+                .call_method(
+                    &activity,
+                    jni::jni_str!("getWindow"),
+                    jni::jni_sig!("()Landroid/view/Window;"),
+                    &[],
+                )
                 .and_then(|v| v.l())
                 .map_err(|e| {
                     let _ = env.exception_clear();
@@ -1805,7 +1835,12 @@ impl PlatformWindow for AndroidPlatformWindow {
             }
 
             let decor_view = env
-                .call_method(&window, jni::jni_str!("getDecorView"), jni::jni_sig!("()Landroid/view/View;"), &[])
+                .call_method(
+                    &window,
+                    jni::jni_str!("getDecorView"),
+                    jni::jni_sig!("()Landroid/view/View;"),
+                    &[],
+                )
                 .and_then(|v| v.l())
                 .map_err(|e| {
                     let _ = env.exception_clear();
@@ -1824,12 +1859,7 @@ impl PlatformWindow for AndroidPlatformWindow {
             );
             let _ = env.exception_clear();
 
-            log::trace!(
-                "update_ime_position: x={:.0} y={:.0} h={:.0}",
-                x,
-                y,
-                h
-            );
+            log::trace!("update_ime_position: x={:.0} y={:.0} h={:.0}", x, y, h);
 
             Ok(())
         });

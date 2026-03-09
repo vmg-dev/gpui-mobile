@@ -92,7 +92,9 @@ pub fn request_permission(permission: Permission) -> Result<PermissionStatus, St
     })
 }
 
-pub fn request_permissions(permissions: &[Permission]) -> Result<Vec<(Permission, PermissionStatus)>, String> {
+pub fn request_permissions(
+    permissions: &[Permission],
+) -> Result<Vec<(Permission, PermissionStatus)>, String> {
     jni_helpers::with_env(|env| {
         let activity = jni_helpers::activity(env)?;
         let cls = jni_helpers::find_app_class(env, HELPER_CLASS)?;
@@ -154,7 +156,12 @@ pub fn service_status(permission: Permission) -> Result<ServiceStatus, String> {
         let service_type = match permission {
             Permission::LocationWhenInUse | Permission::LocationAlways => 0i32,
             Permission::Bluetooth => 1i32,
-            _ => return { std::mem::forget(activity); Ok(ServiceStatus::NotApplicable) },
+            _ => {
+                return {
+                    std::mem::forget(activity);
+                    Ok(ServiceStatus::NotApplicable)
+                }
+            }
         };
 
         let enabled = env
@@ -172,7 +179,11 @@ pub fn service_status(permission: Permission) -> Result<ServiceStatus, String> {
 
         std::mem::forget(activity);
 
-        Ok(if enabled { ServiceStatus::Enabled } else { ServiceStatus::Disabled })
+        Ok(if enabled {
+            ServiceStatus::Enabled
+        } else {
+            ServiceStatus::Disabled
+        })
     })
 }
 

@@ -5,10 +5,10 @@
 //!
 //! Feature-gated behind `notifications`.
 
-#[cfg(target_os = "ios")]
-mod ios;
 #[cfg(target_os = "android")]
 mod android;
+#[cfg(target_os = "ios")]
+mod ios;
 
 /// Importance/priority level for notifications.
 #[derive(Debug, Clone, Copy, Default)]
@@ -70,39 +70,65 @@ pub struct Notification {
 /// On iOS, requests notification authorization.
 pub fn initialize() -> Result<(), String> {
     #[cfg(target_os = "ios")]
-    { ios::initialize() }
+    {
+        ios::initialize()
+    }
     #[cfg(target_os = "android")]
-    { android::initialize() }
+    {
+        android::initialize()
+    }
     #[cfg(not(any(target_os = "ios", target_os = "android")))]
-    { Err("notifications are only available on iOS and Android".into()) }
+    {
+        Err("notifications are only available on iOS and Android".into())
+    }
 }
 
 /// Show an immediate notification.
 pub fn show(notification: &Notification) -> Result<(), String> {
     #[cfg(target_os = "ios")]
-    { ios::show(notification) }
+    {
+        ios::show(notification)
+    }
     #[cfg(target_os = "android")]
-    { android::show(notification) }
+    {
+        android::show(notification)
+    }
     #[cfg(not(any(target_os = "ios", target_os = "android")))]
-    { let _ = notification; Err("notifications are only available on iOS and Android".into()) }
+    {
+        let _ = notification;
+        Err("notifications are only available on iOS and Android".into())
+    }
 }
 
 /// Cancel a specific notification by ID.
 pub fn cancel(id: i32) -> Result<(), String> {
     #[cfg(target_os = "ios")]
-    { ios::cancel(id) }
+    {
+        ios::cancel(id)
+    }
     #[cfg(target_os = "android")]
-    { android::cancel(id) }
+    {
+        android::cancel(id)
+    }
     #[cfg(not(any(target_os = "ios", target_os = "android")))]
-    { let _ = id; Err("notifications are only available on iOS and Android".into()) }
+    {
+        let _ = id;
+        Err("notifications are only available on iOS and Android".into())
+    }
 }
 
 /// Cancel all notifications.
 pub fn cancel_all() -> Result<(), String> {
     #[cfg(target_os = "ios")]
-    { ios::cancel_all() }
+    {
+        ios::cancel_all()
+    }
     #[cfg(target_os = "android")]
-    { android::cancel_all() }
+    {
+        android::cancel_all()
+    }
     #[cfg(not(any(target_os = "ios", target_os = "android")))]
-    { Err("notifications are only available on iOS and Android".into()) }
+    {
+        Err("notifications are only available on iOS and Android".into())
+    }
 }

@@ -28,12 +28,13 @@ fn with_players<T>(f: impl FnOnce(&mut HashMap<u32, PlayerEntry>) -> T) -> T {
     f(map)
 }
 
-fn with_player<T>(id: u32, f: impl FnOnce(&mut PlayerEntry) -> Result<T, String>) -> Result<T, String> {
-    with_players(|map| {
-        match map.get_mut(&id) {
-            Some(entry) => f(entry),
-            None => Err(format!("VideoPlayer {id} not found")),
-        }
+fn with_player<T>(
+    id: u32,
+    f: impl FnOnce(&mut PlayerEntry) -> Result<T, String>,
+) -> Result<T, String> {
+    with_players(|map| match map.get_mut(&id) {
+        Some(entry) => f(entry),
+        None => Err(format!("VideoPlayer {id} not found")),
     })
 }
 
@@ -47,11 +48,14 @@ pub fn create() -> Result<VideoPlayer, String> {
 
         let id = NEXT_ID.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         with_players(|map| {
-            map.insert(id, PlayerEntry {
-                player,
-                looping: false,
-                layer: std::ptr::null_mut(),
-            });
+            map.insert(
+                id,
+                PlayerEntry {
+                    player,
+                    looping: false,
+                    layer: std::ptr::null_mut(),
+                },
+            );
         });
 
         Ok(VideoPlayer { id })
@@ -59,42 +63,38 @@ pub fn create() -> Result<VideoPlayer, String> {
 }
 
 pub fn set_url(id: u32, url: &str) -> Result<VideoInfo, String> {
-    with_player(id, |entry| {
-        unsafe {
-            let url_str = make_nsstring(url);
-            let nsurl: *mut Object = msg_send![class!(NSURL), URLWithString: url_str];
-            if nsurl.is_null() {
-                let _: () = msg_send![url_str, release];
-                return Err("Invalid URL".into());
-            }
-
-            let item: *mut Object = msg_send![class!(AVPlayerItem), playerItemWithURL: nsurl];
-            let _: () = msg_send![entry.player, replaceCurrentItemWithPlayerItem: item];
+    with_player(id, |entry| unsafe {
+        let url_str = make_nsstring(url);
+        let nsurl: *mut Object = msg_send![class!(NSURL), URLWithString: url_str];
+        if nsurl.is_null() {
             let _: () = msg_send![url_str, release];
-
-            wait_for_item_ready(entry.player)?;
-            get_video_info(entry.player)
+            return Err("Invalid URL".into());
         }
+
+        let item: *mut Object = msg_send![class!(AVPlayerItem), playerItemWithURL: nsurl];
+        let _: () = msg_send![entry.player, replaceCurrentItemWithPlayerItem: item];
+        let _: () = msg_send![url_str, release];
+
+        wait_for_item_ready(entry.player)?;
+        get_video_info(entry.player)
     })
 }
 
 pub fn set_file_path(id: u32, path: &str) -> Result<VideoInfo, String> {
-    with_player(id, |entry| {
-        unsafe {
-            let path_str = make_nsstring(path);
-            let nsurl: *mut Object = msg_send![class!(NSURL), fileURLWithPath: path_str];
-            if nsurl.is_null() {
-                let _: () = msg_send![path_str, release];
-                return Err("Invalid file path".into());
-            }
-
-            let item: *mut Object = msg_send![class!(AVPlayerItem), playerItemWithURL: nsurl];
-            let _: () = msg_send![entry.player, replaceCurrentItemWithPlayerItem: item];
+    with_player(id, |entry| unsafe {
+        let path_str = make_nsstring(path);
+        let nsurl: *mut Object = msg_send![class!(NSURL), fileURLWithPath: path_str];
+        if nsurl.is_null() {
             let _: () = msg_send![path_str, release];
-
-            wait_for_item_ready(entry.player)?;
-            get_video_info(entry.player)
+            return Err("Invalid file path".into());
         }
+
+        let item: *mut Object = msg_send![class!(AVPlayerItem), playerItemWithURL: nsurl];
+        let _: () = msg_send![entry.player, replaceCurrentItemWithPlayerItem: item];
+        let _: () = msg_send![path_str, release];
+
+        wait_for_item_ready(entry.player)?;
+        get_video_info(entry.player)
     })
 }
 
@@ -162,46 +162,38 @@ pub fn set_looping(id: u32, looping: bool) -> Result<(), String> {
 }
 
 pub fn position(id: u32) -> Result<u64, String> {
-    with_player(id, |entry| {
-        unsafe {
-            let time: CMTime = msg_send![entry.player, currentTime];
-            Ok(cmtime_to_ms(time))
-        }
+    with_player(id, |entry| unsafe {
+        let time: CMTime = msg_send![entry.player, currentTime];
+        Ok(cmtime_to_ms(time))
     })
 }
 
 pub fn duration(id: u32) -> Result<u64, String> {
-    with_player(id, |entry| {
-        unsafe {
-            let item: *mut Object = msg_send![entry.player, currentItem];
-            if item.is_null() {
-                return Err("No current item".into());
-            }
-            let dur: CMTime = msg_send![item, duration];
-            Ok(cmtime_to_ms(dur))
+    with_player(id, |entry| unsafe {
+        let item: *mut Object = msg_send![entry.player, currentItem];
+        if item.is_null() {
+            return Err("No current item".into());
         }
+        let dur: CMTime = msg_send![item, duration];
+        Ok(cmtime_to_ms(dur))
     })
 }
 
 pub fn video_size(id: u32) -> Result<(u32, u32), String> {
-    with_player(id, |entry| {
-        unsafe {
-            let item: *mut Object = msg_send![entry.player, currentItem];
-            if item.is_null() {
-                return Err("No current item".into());
-            }
-            let size: CGSize = msg_send![item, presentationSize];
-            Ok((size.width as u32, size.height as u32))
+    with_player(id, |entry| unsafe {
+        let item: *mut Object = msg_send![entry.player, currentItem];
+        if item.is_null() {
+            return Err("No current item".into());
         }
+        let size: CGSize = msg_send![item, presentationSize];
+        Ok((size.width as u32, size.height as u32))
     })
 }
 
 pub fn is_playing(id: u32) -> Result<bool, String> {
-    with_player(id, |entry| {
-        unsafe {
-            let rate: f32 = msg_send![entry.player, rate];
-            Ok(rate > 0.0)
-        }
+    with_player(id, |entry| unsafe {
+        let rate: f32 = msg_send![entry.player, rate];
+        Ok(rate > 0.0)
     })
 }
 
@@ -216,7 +208,8 @@ pub fn show_surface(id: u32, x: f32, y: f32, width: f32, height: f32) -> Result<
             }
 
             // Create AVPlayerLayer
-            let layer: *mut Object = msg_send![class!(AVPlayerLayer), playerLayerWithPlayer: entry.player];
+            let layer: *mut Object =
+                msg_send![class!(AVPlayerLayer), playerLayerWithPlayer: entry.player];
             if layer.is_null() {
                 return Err("Failed to create AVPlayerLayer".into());
             }
@@ -224,8 +217,14 @@ pub fn show_surface(id: u32, x: f32, y: f32, width: f32, height: f32) -> Result<
 
             // Set frame
             let frame = CGRect {
-                origin: CGPoint { x: x as f64, y: y as f64 },
-                size: CGSize { width: width as f64, height: height as f64 },
+                origin: CGPoint {
+                    x: x as f64,
+                    y: y as f64,
+                },
+                size: CGSize {
+                    width: width as f64,
+                    height: height as f64,
+                },
             };
             let _: () = msg_send![layer, setFrame: frame];
 

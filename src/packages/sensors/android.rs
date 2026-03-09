@@ -70,11 +70,7 @@ fn get_sensor_manager<'local>(
     }
 }
 
-fn has_sensor(
-    env: &mut jni::Env<'_>,
-    sm: &jni::objects::JObject<'_>,
-    sensor_type: i32,
-) -> bool {
+fn has_sensor(env: &mut jni::Env<'_>, sm: &jni::objects::JObject<'_>, sensor_type: i32) -> bool {
     match env
         .call_method(
             sm,

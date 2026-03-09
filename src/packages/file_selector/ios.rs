@@ -69,7 +69,11 @@ extern "C" fn did_pick_documents(
             if !abs_string.is_null() {
                 let cstr: *const std::ffi::c_char = msg_send![abs_string, UTF8String];
                 if !cstr.is_null() {
-                    paths.push(std::ffi::CStr::from_ptr(cstr).to_string_lossy().into_owned());
+                    paths.push(
+                        std::ffi::CStr::from_ptr(cstr)
+                            .to_string_lossy()
+                            .into_owned(),
+                    );
                 }
             }
         }
@@ -354,7 +358,8 @@ pub fn get_directory_path(initial_directory: Option<&str>) -> Result<Option<Stri
         // Set initial directory if provided
         if let Some(dir) = initial_directory {
             let ns_dir = nsstring(dir);
-            let dir_url: *mut Object = msg_send![class!(NSURL), fileURLWithPath: ns_dir isDirectory: YES];
+            let dir_url: *mut Object =
+                msg_send![class!(NSURL), fileURLWithPath: ns_dir isDirectory: YES];
             if !dir_url.is_null() {
                 let _: () = msg_send![picker, setDirectoryURL: dir_url];
             }

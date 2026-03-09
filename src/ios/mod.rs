@@ -20,8 +20,8 @@ pub(crate) use dispatcher::*;
 pub(crate) use display::*;
 pub use platform::*;
 pub(crate) use text_system::*;
-pub(crate) use window::*;
 pub use window::set_status_bar_style;
+pub(crate) use window::*;
 
 /// Returns the platform implementation for iOS.
 pub fn current_platform(_headless: bool) -> std::rc::Rc<dyn gpui::Platform> {

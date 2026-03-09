@@ -1,5 +1,5 @@
-use objc::{class, msg_send, sel, sel_impl};
 use objc::runtime::Object;
+use objc::{class, msg_send, sel, sel_impl};
 
 pub fn set_text(text: &str) -> Result<(), String> {
     unsafe {

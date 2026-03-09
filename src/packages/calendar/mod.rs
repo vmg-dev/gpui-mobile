@@ -6,10 +6,10 @@
 //!
 //! Feature-gated behind `calendar`.
 
-#[cfg(target_os = "ios")]
-mod ios;
 #[cfg(target_os = "android")]
 mod android;
+#[cfg(target_os = "ios")]
+mod ios;
 
 /// A calendar on the device.
 #[derive(Debug, Clone)]
@@ -48,40 +48,71 @@ pub struct CalendarEvent {
 /// Get all calendars on the device.
 pub fn get_calendars() -> Result<Vec<Calendar>, String> {
     #[cfg(target_os = "ios")]
-    { ios::get_calendars() }
+    {
+        ios::get_calendars()
+    }
     #[cfg(target_os = "android")]
-    { android::get_calendars() }
+    {
+        android::get_calendars()
+    }
     #[cfg(not(any(target_os = "ios", target_os = "android")))]
-    { Err("calendar is only available on iOS and Android".into()) }
+    {
+        Err("calendar is only available on iOS and Android".into())
+    }
 }
 
 /// Get events from a date range.
 /// `start_ms` and `end_ms` are Unix timestamps in milliseconds.
-pub fn get_events(calendar_id: &str, start_ms: i64, end_ms: i64) -> Result<Vec<CalendarEvent>, String> {
+pub fn get_events(
+    calendar_id: &str,
+    start_ms: i64,
+    end_ms: i64,
+) -> Result<Vec<CalendarEvent>, String> {
     #[cfg(target_os = "ios")]
-    { ios::get_events(calendar_id, start_ms, end_ms) }
+    {
+        ios::get_events(calendar_id, start_ms, end_ms)
+    }
     #[cfg(target_os = "android")]
-    { android::get_events(calendar_id, start_ms, end_ms) }
+    {
+        android::get_events(calendar_id, start_ms, end_ms)
+    }
     #[cfg(not(any(target_os = "ios", target_os = "android")))]
-    { let _ = (calendar_id, start_ms, end_ms); Err("calendar is only available on iOS and Android".into()) }
+    {
+        let _ = (calendar_id, start_ms, end_ms);
+        Err("calendar is only available on iOS and Android".into())
+    }
 }
 
 /// Create a new event. Returns the event ID.
 pub fn create_event(event: &CalendarEvent) -> Result<String, String> {
     #[cfg(target_os = "ios")]
-    { ios::create_event(event) }
+    {
+        ios::create_event(event)
+    }
     #[cfg(target_os = "android")]
-    { android::create_event(event) }
+    {
+        android::create_event(event)
+    }
     #[cfg(not(any(target_os = "ios", target_os = "android")))]
-    { let _ = event; Err("calendar is only available on iOS and Android".into()) }
+    {
+        let _ = event;
+        Err("calendar is only available on iOS and Android".into())
+    }
 }
 
 /// Delete an event by ID.
 pub fn delete_event(event_id: &str) -> Result<bool, String> {
     #[cfg(target_os = "ios")]
-    { ios::delete_event(event_id) }
+    {
+        ios::delete_event(event_id)
+    }
     #[cfg(target_os = "android")]
-    { android::delete_event(event_id) }
+    {
+        android::delete_event(event_id)
+    }
     #[cfg(not(any(target_os = "ios", target_os = "android")))]
-    { let _ = event_id; Err("calendar is only available on iOS and Android".into()) }
+    {
+        let _ = event_id;
+        Err("calendar is only available on iOS and Android".into())
+    }
 }

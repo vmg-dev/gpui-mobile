@@ -9,7 +9,6 @@
 
 use gpui::{KeyDownEvent, Keystroke, Modifiers, PlatformInput};
 
-
 /// Convert a key code from UIKeyboardHIDUsage to a GPUI key string.
 ///
 /// UIKeyboardHIDUsage values are based on the USB HID specification.

@@ -94,21 +94,25 @@ extern "C" fn phpicker_did_finish(
                 let path_copy = file_path_str.clone();
 
                 // Use loadFileRepresentationForTypeIdentifier to get a temp file URL
-                let block = block::ConcreteBlock::new(move |url: *mut Object, _error: *mut Object| {
-                    if url.is_null() {
-                        let _ = item_tx.send(None);
-                        return;
-                    }
-                    // Copy the file to our temp directory
-                    let file_mgr: *mut Object = msg_send![class!(NSFileManager), defaultManager];
-                    let dest_url: *mut Object = msg_send![class!(NSURL), fileURLWithPath: nsstring(&path_copy)];
-                    let ok: BOOL = msg_send![file_mgr, copyItemAtURL: url toURL: dest_url error: std::ptr::null_mut::<*mut Object>()];
-                    if ok == YES {
-                        let _ = item_tx.send(Some(path_copy.clone()));
-                    } else {
-                        let _ = item_tx.send(None);
-                    }
-                });
+                let block = block::ConcreteBlock::new(
+                    move |url: *mut Object, _error: *mut Object| {
+                        if url.is_null() {
+                            let _ = item_tx.send(None);
+                            return;
+                        }
+                        // Copy the file to our temp directory
+                        let file_mgr: *mut Object =
+                            msg_send![class!(NSFileManager), defaultManager];
+                        let dest_url: *mut Object =
+                            msg_send![class!(NSURL), fileURLWithPath: nsstring(&path_copy)];
+                        let ok: BOOL = msg_send![file_mgr, copyItemAtURL: url toURL: dest_url error: std::ptr::null_mut::<*mut Object>()];
+                        if ok == YES {
+                            let _ = item_tx.send(Some(path_copy.clone()));
+                        } else {
+                            let _ = item_tx.send(None);
+                        }
+                    },
+                );
                 let block = block.copy();
 
                 let _: *mut Object = msg_send![item_provider,
@@ -203,11 +207,7 @@ extern "C" fn uipicker_did_finish(
     }
 }
 
-extern "C" fn uipicker_did_cancel(
-    _this: &Object,
-    _sel: Sel,
-    controller: *mut Object,
-) {
+extern "C" fn uipicker_did_cancel(_this: &Object, _sel: Sel, controller: *mut Object) {
     unsafe {
         let _: () = msg_send![controller, dismissViewControllerAnimated: YES completion: std::ptr::null::<Object>()];
     }
@@ -264,8 +264,9 @@ fn path_to_picked_file(path: &str) -> PickedFile {
 
 pub fn pick_image(options: &ImagePickerOptions) -> Result<Option<PickedFile>, String> {
     match options.source {
-        ImageSource::Gallery => pick_image_from_gallery(options, false)
-            .map(|v| v.into_iter().next()),
+        ImageSource::Gallery => {
+            pick_image_from_gallery(options, false).map(|v| v.into_iter().next())
+        }
         ImageSource::Camera => pick_from_camera(options, false),
     }
 }
@@ -388,7 +389,8 @@ fn pick_from_camera(
     unsafe {
         // Check if camera is available
         let source_type: i64 = 1; // UIImagePickerControllerSourceTypeCamera
-        let available: BOOL = msg_send![class!(UIImagePickerController), isSourceTypeAvailable: source_type];
+        let available: BOOL =
+            msg_send![class!(UIImagePickerController), isSourceTypeAvailable: source_type];
         if available != YES {
             return Err("Camera is not available on this device".into());
         }

@@ -100,18 +100,34 @@ extern "C" {
     fn CNCopyCurrentNetworkInfo(interface_name: CFStringRef) -> CFDictionaryRef;
     fn CFArrayGetCount(array: CFArrayRef) -> CFIndex;
     fn CFArrayGetValueAtIndex(array: CFArrayRef, idx: CFIndex) -> *const std::ffi::c_void;
-    fn CFDictionaryGetValue(dict: CFDictionaryRef, key: *const std::ffi::c_void) -> *const std::ffi::c_void;
+    fn CFDictionaryGetValue(
+        dict: CFDictionaryRef,
+        key: *const std::ffi::c_void,
+    ) -> *const std::ffi::c_void;
     fn CFRelease(cf: *const std::ffi::c_void);
     fn CFStringGetCStringPtr(string: CFStringRef, encoding: u32) -> *const i8;
     fn CFStringGetLength(string: CFStringRef) -> CFIndex;
-    fn CFStringGetCString(string: CFStringRef, buffer: *mut i8, buffer_size: CFIndex, encoding: u32) -> bool;
-    fn CFStringCreateWithCString(alloc: CFAllocatorRef, c_str: *const i8, encoding: u32) -> CFStringRef;
+    fn CFStringGetCString(
+        string: CFStringRef,
+        buffer: *mut i8,
+        buffer_size: CFIndex,
+        encoding: u32,
+    ) -> bool;
+    fn CFStringCreateWithCString(
+        alloc: CFAllocatorRef,
+        c_str: *const i8,
+        encoding: u32,
+    ) -> CFStringRef;
 }
 
 const CF_STRING_ENCODING_UTF8: u32 = 0x08000100;
 
 unsafe fn cfstring_from_static(s: &[u8]) -> CFStringRef {
-    CFStringCreateWithCString(std::ptr::null(), s.as_ptr() as *const i8, CF_STRING_ENCODING_UTF8)
+    CFStringCreateWithCString(
+        std::ptr::null(),
+        s.as_ptr() as *const i8,
+        CF_STRING_ENCODING_UTF8,
+    )
 }
 
 unsafe fn cfstring_to_string(cf: CFStringRef) -> Option<String> {

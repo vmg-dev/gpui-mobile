@@ -10,13 +10,14 @@ pub fn vibrate(duration_ms: u32) -> Result<(), String> {
 
         // Try VibrationEffect.createOneShot (API 26+)
         if let Ok(ve_cls) = env.find_class(jni::jni_str!("android/os/VibrationEffect")) {
-            if let Ok(effect) = env.call_static_method(
-                &ve_cls,
-                jni::jni_str!("createOneShot"),
-                jni::jni_sig!("(JI)Landroid/os/VibrationEffect;"),
-                &[JValue::Long(duration_ms as i64), JValue::Int(-1)], // DEFAULT_AMPLITUDE = -1
-            )
-            .and_then(|v| v.l())
+            if let Ok(effect) = env
+                .call_static_method(
+                    &ve_cls,
+                    jni::jni_str!("createOneShot"),
+                    jni::jni_sig!("(JI)Landroid/os/VibrationEffect;"),
+                    &[JValue::Long(duration_ms as i64), JValue::Int(-1)], // DEFAULT_AMPLITUDE = -1
+                )
+                .and_then(|v| v.l())
             {
                 if !effect.is_null() {
                     let _ = env.call_method(
@@ -61,7 +62,12 @@ pub fn haptic_feedback(feedback: HapticFeedback) -> Result<(), String> {
 
         // activity.getWindow().getDecorView().performHapticFeedback(constant)
         let window = env
-            .call_method(&activity, jni::jni_str!("getWindow"), jni::jni_sig!("()Landroid/view/Window;"), &[])
+            .call_method(
+                &activity,
+                jni::jni_str!("getWindow"),
+                jni::jni_sig!("()Landroid/view/Window;"),
+                &[],
+            )
             .and_then(|v| v.l())
             .e()?;
         if window.is_null() {
@@ -69,7 +75,12 @@ pub fn haptic_feedback(feedback: HapticFeedback) -> Result<(), String> {
         }
 
         let decor = env
-            .call_method(&window, jni::jni_str!("getDecorView"), jni::jni_sig!("()Landroid/view/View;"), &[])
+            .call_method(
+                &window,
+                jni::jni_str!("getDecorView"),
+                jni::jni_sig!("()Landroid/view/View;"),
+                &[],
+            )
             .and_then(|v| v.l())
             .e()?;
         if decor.is_null() {
@@ -93,7 +104,13 @@ pub fn can_vibrate() -> bool {
 
         let vibrator = get_vibrator_service(env, &activity)?;
 
-        let result = env.call_method(&vibrator, jni::jni_str!("hasVibrator"), jni::jni_sig!("()Z"), &[])
+        let result = env
+            .call_method(
+                &vibrator,
+                jni::jni_str!("hasVibrator"),
+                jni::jni_sig!("()Z"),
+                &[],
+            )
             .and_then(|v| v.z())
             .unwrap_or(false);
         Ok(result)

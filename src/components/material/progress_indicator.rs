@@ -607,7 +607,11 @@ fn progress_indicator_demo_inner(dark: bool, time: f32) -> impl IntoElement {
                                 .text_color(label_color)
                                 .child("Indeterminate"),
                         )
-                        .child(LinearProgressIndicator::new(theme).indeterminate().time(time)),
+                        .child(
+                            LinearProgressIndicator::new(theme)
+                                .indeterminate()
+                                .time(time),
+                        ),
                 )
                 // Custom height
                 .child(
@@ -712,7 +716,11 @@ fn progress_indicator_demo_inner(dark: bool, time: f32) -> impl IntoElement {
                                 .flex_col()
                                 .items_center()
                                 .gap_2()
-                                .child(CircularProgressIndicator::new(theme).indeterminate().time(time))
+                                .child(
+                                    CircularProgressIndicator::new(theme)
+                                        .indeterminate()
+                                        .time(time),
+                                )
                                 .child(div().text_xs().text_color(label_color).child("Indet.")),
                         ),
                 )

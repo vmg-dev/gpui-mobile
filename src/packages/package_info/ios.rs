@@ -1,6 +1,6 @@
 use super::PackageInfo;
-use objc::{class, msg_send, sel, sel_impl};
 use objc::runtime::Object;
+use objc::{class, msg_send, sel, sel_impl};
 use std::ffi::CStr;
 
 pub fn get_package_info() -> Result<PackageInfo, String> {
@@ -19,14 +19,11 @@ pub fn get_package_info() -> Result<PackageInfo, String> {
             .or_else(|| nsdict_string(info_dict, "CFBundleName"))
             .unwrap_or_default();
 
-        let package_name = nsdict_string(info_dict, "CFBundleIdentifier")
-            .unwrap_or_default();
+        let package_name = nsdict_string(info_dict, "CFBundleIdentifier").unwrap_or_default();
 
-        let version = nsdict_string(info_dict, "CFBundleShortVersionString")
-            .unwrap_or_default();
+        let version = nsdict_string(info_dict, "CFBundleShortVersionString").unwrap_or_default();
 
-        let build_number = nsdict_string(info_dict, "CFBundleVersion")
-            .unwrap_or_default();
+        let build_number = nsdict_string(info_dict, "CFBundleVersion").unwrap_or_default();
 
         Ok(PackageInfo {
             app_name,

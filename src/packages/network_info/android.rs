@@ -44,7 +44,12 @@ pub fn get_network_info() -> Result<NetworkInfo, String> {
 
         // SSID
         if let Ok(ssid_obj) = env
-            .call_method(&wifi_info, jni::jni_str!("getSSID"), jni::jni_sig!("()Ljava/lang/String;"), &[])
+            .call_method(
+                &wifi_info,
+                jni::jni_str!("getSSID"),
+                jni::jni_sig!("()Ljava/lang/String;"),
+                &[],
+            )
             .and_then(|v| v.l())
         {
             let ssid = get_string(env, &ssid_obj);
@@ -56,7 +61,12 @@ pub fn get_network_info() -> Result<NetworkInfo, String> {
 
         // BSSID
         if let Ok(bssid_obj) = env
-            .call_method(&wifi_info, jni::jni_str!("getBSSID"), jni::jni_sig!("()Ljava/lang/String;"), &[])
+            .call_method(
+                &wifi_info,
+                jni::jni_str!("getBSSID"),
+                jni::jni_sig!("()Ljava/lang/String;"),
+                &[],
+            )
             .and_then(|v| v.l())
         {
             let bssid = get_string(env, &bssid_obj);
@@ -67,7 +77,12 @@ pub fn get_network_info() -> Result<NetworkInfo, String> {
 
         // IP Address
         if let Ok(ip) = env
-            .call_method(&wifi_info, jni::jni_str!("getIpAddress"), jni::jni_sig!("()I"), &[])
+            .call_method(
+                &wifi_info,
+                jni::jni_str!("getIpAddress"),
+                jni::jni_sig!("()I"),
+                &[],
+            )
             .and_then(|v| v.i())
         {
             if ip != 0 {

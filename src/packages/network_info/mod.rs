@@ -1,9 +1,9 @@
 //! Network interface information (WiFi name, BSSID, IP address).
 
-#[cfg(target_os = "ios")]
-mod ios;
 #[cfg(target_os = "android")]
 mod android;
+#[cfg(target_os = "ios")]
+mod ios;
 
 /// Information about the current network connection.
 #[derive(Debug, Clone, Default)]
@@ -22,9 +22,15 @@ pub struct NetworkInfo {
 /// "Access WiFi Information" entitlement and location permission.
 pub fn get_network_info() -> Result<NetworkInfo, String> {
     #[cfg(target_os = "ios")]
-    { ios::get_network_info() }
+    {
+        ios::get_network_info()
+    }
     #[cfg(target_os = "android")]
-    { android::get_network_info() }
+    {
+        android::get_network_info()
+    }
     #[cfg(not(any(target_os = "ios", target_os = "android")))]
-    { Err("network_info is only available on iOS and Android".into()) }
+    {
+        Err("network_info is only available on iOS and Android".into())
+    }
 }

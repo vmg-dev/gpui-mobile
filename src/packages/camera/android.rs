@@ -95,7 +95,9 @@ pub fn create_camera(
             return Err("Failed to create camera session".into());
         }
 
-        Ok(CameraHandle { id: handle_id as usize })
+        Ok(CameraHandle {
+            id: handle_id as usize,
+        })
     })
 }
 

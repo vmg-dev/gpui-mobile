@@ -8,10 +8,10 @@
 //!
 //! Feature-gated behind `image_picker`.
 
-#[cfg(target_os = "ios")]
-mod ios;
 #[cfg(target_os = "android")]
 mod android;
+#[cfg(target_os = "ios")]
+mod ios;
 
 /// Source for picking an image or video.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -73,11 +73,18 @@ pub struct PickedFile {
 /// Returns `Ok(None)` if the user cancelled.
 pub fn pick_image(options: &ImagePickerOptions) -> Result<Option<PickedFile>, String> {
     #[cfg(target_os = "ios")]
-    { ios::pick_image(options) }
+    {
+        ios::pick_image(options)
+    }
     #[cfg(target_os = "android")]
-    { android::pick_image(options) }
+    {
+        android::pick_image(options)
+    }
     #[cfg(not(any(target_os = "ios", target_os = "android")))]
-    { let _ = options; Err("image_picker is only available on iOS and Android".into()) }
+    {
+        let _ = options;
+        Err("image_picker is only available on iOS and Android".into())
+    }
 }
 
 /// Pick multiple images from the gallery.
@@ -89,11 +96,18 @@ pub fn pick_multi_image(
     image_quality: Option<u8>,
 ) -> Result<Vec<PickedFile>, String> {
     #[cfg(target_os = "ios")]
-    { ios::pick_multi_image(max_width, max_height, image_quality) }
+    {
+        ios::pick_multi_image(max_width, max_height, image_quality)
+    }
     #[cfg(target_os = "android")]
-    { android::pick_multi_image(max_width, max_height, image_quality) }
+    {
+        android::pick_multi_image(max_width, max_height, image_quality)
+    }
     #[cfg(not(any(target_os = "ios", target_os = "android")))]
-    { let _ = (max_width, max_height, image_quality); Err("image_picker is only available on iOS and Android".into()) }
+    {
+        let _ = (max_width, max_height, image_quality);
+        Err("image_picker is only available on iOS and Android".into())
+    }
 }
 
 /// Pick a video from the gallery or camera.
@@ -104,9 +118,16 @@ pub fn pick_video(
     preferred_camera: CameraDevice,
 ) -> Result<Option<PickedFile>, String> {
     #[cfg(target_os = "ios")]
-    { ios::pick_video(source, preferred_camera) }
+    {
+        ios::pick_video(source, preferred_camera)
+    }
     #[cfg(target_os = "android")]
-    { android::pick_video(source, preferred_camera) }
+    {
+        android::pick_video(source, preferred_camera)
+    }
     #[cfg(not(any(target_os = "ios", target_os = "android")))]
-    { let _ = (source, preferred_camera); Err("image_picker is only available on iOS and Android".into()) }
+    {
+        let _ = (source, preferred_camera);
+        Err("image_picker is only available on iOS and Android".into())
+    }
 }

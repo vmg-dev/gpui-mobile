@@ -1,11 +1,17 @@
 use objc::runtime::Object;
 use objc::{class, msg_send, sel, sel_impl};
 
-pub fn open_coordinates(latitude: f64, longitude: f64, label: Option<&str>) -> Result<bool, String> {
+pub fn open_coordinates(
+    latitude: f64,
+    longitude: f64,
+    label: Option<&str>,
+) -> Result<bool, String> {
     let url = match label {
         Some(l) => format!(
             "http://maps.apple.com/?ll={},{}&q={}",
-            latitude, longitude, percent_encode(l)
+            latitude,
+            longitude,
+            percent_encode(l)
         ),
         None => format!("http://maps.apple.com/?ll={},{}", latitude, longitude),
     };
@@ -25,7 +31,9 @@ pub fn open_directions(
     let url = match dest_label {
         Some(l) => format!(
             "http://maps.apple.com/?daddr={},{}&q={}&dirflg=d",
-            dest_latitude, dest_longitude, percent_encode(l)
+            dest_latitude,
+            dest_longitude,
+            percent_encode(l)
         ),
         None => format!(
             "http://maps.apple.com/?daddr={},{}&dirflg=d",

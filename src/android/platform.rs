@@ -739,9 +739,7 @@ impl AndroidPlatform {
             let activity = jni_helpers::activity(env)?;
 
             // activity.getSystemService("input_method")
-            let service_name = env
-                .new_string("input_method")
-                .map_err(|e| e.to_string())?;
+            let service_name = env.new_string("input_method").map_err(|e| e.to_string())?;
             let imm = env
                 .call_method(
                     &activity,
@@ -771,7 +769,12 @@ impl AndroidPlatform {
 
             // subtype.getLocale()
             let locale_obj = env
-                .call_method(&subtype, jni::jni_str!("getLocale"), jni::jni_sig!("()Ljava/lang/String;"), &[])
+                .call_method(
+                    &subtype,
+                    jni::jni_str!("getLocale"),
+                    jni::jni_sig!("()Ljava/lang/String;"),
+                    &[],
+                )
                 .and_then(|v| v.l())
                 .map_err(|e| e.to_string())?;
 
@@ -858,7 +861,12 @@ impl AndroidPlatform {
 
             // pm.getCurrentThermalStatus() — API 29+
             let status = match env
-                .call_method(&pm, jni::jni_str!("getCurrentThermalStatus"), jni::jni_sig!("()I"), &[])
+                .call_method(
+                    &pm,
+                    jni::jni_str!("getCurrentThermalStatus"),
+                    jni::jni_sig!("()I"),
+                    &[],
+                )
                 .and_then(|v| v.i())
             {
                 Ok(s) => s,

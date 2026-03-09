@@ -1,9 +1,9 @@
 //! Device sensor access — accelerometer, gyroscope, magnetometer, barometer.
 
-#[cfg(target_os = "ios")]
-mod ios;
 #[cfg(target_os = "android")]
 mod android;
+#[cfg(target_os = "ios")]
+mod ios;
 
 /// A 3-axis sensor reading (x, y, z) in SI units.
 ///
@@ -36,49 +36,79 @@ pub struct SensorAvailability {
 /// Check which sensors are available on this device.
 pub fn available_sensors() -> SensorAvailability {
     #[cfg(target_os = "ios")]
-    { ios::available_sensors() }
+    {
+        ios::available_sensors()
+    }
     #[cfg(target_os = "android")]
-    { android::available_sensors() }
+    {
+        android::available_sensors()
+    }
     #[cfg(not(any(target_os = "ios", target_os = "android")))]
-    { SensorAvailability::default() }
+    {
+        SensorAvailability::default()
+    }
 }
 
 /// Get the latest accelerometer reading (includes gravity).
 pub fn accelerometer() -> Option<SensorData> {
     #[cfg(target_os = "ios")]
-    { ios::accelerometer() }
+    {
+        ios::accelerometer()
+    }
     #[cfg(target_os = "android")]
-    { android::accelerometer() }
+    {
+        android::accelerometer()
+    }
     #[cfg(not(any(target_os = "ios", target_os = "android")))]
-    { None }
+    {
+        None
+    }
 }
 
 /// Get the latest gyroscope reading.
 pub fn gyroscope() -> Option<SensorData> {
     #[cfg(target_os = "ios")]
-    { ios::gyroscope() }
+    {
+        ios::gyroscope()
+    }
     #[cfg(target_os = "android")]
-    { android::gyroscope() }
+    {
+        android::gyroscope()
+    }
     #[cfg(not(any(target_os = "ios", target_os = "android")))]
-    { None }
+    {
+        None
+    }
 }
 
 /// Get the latest magnetometer reading.
 pub fn magnetometer() -> Option<SensorData> {
     #[cfg(target_os = "ios")]
-    { ios::magnetometer() }
+    {
+        ios::magnetometer()
+    }
     #[cfg(target_os = "android")]
-    { android::magnetometer() }
+    {
+        android::magnetometer()
+    }
     #[cfg(not(any(target_os = "ios", target_os = "android")))]
-    { None }
+    {
+        None
+    }
 }
 
 /// Get the latest barometer (atmospheric pressure) reading.
 pub fn barometer() -> Option<BarometerData> {
     #[cfg(target_os = "ios")]
-    { ios::barometer() }
+    {
+        ios::barometer()
+    }
     #[cfg(target_os = "android")]
-    { android::barometer() }
+    {
+        android::barometer()
+    }
     #[cfg(not(any(target_os = "ios", target_os = "android")))]
-    { None }
+    {
+        None
+    }
 }

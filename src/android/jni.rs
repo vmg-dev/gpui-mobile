@@ -40,7 +40,10 @@
 
 use std::{
     ffi::c_void,
-    sync::{Arc, OnceLock, atomic::{AtomicBool, Ordering}},
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc, OnceLock,
+    },
     time::Duration,
 };
 
@@ -91,9 +94,7 @@ fn java_vm_safe() -> Result<&'static JavaVM, String> {
     if ptr.is_null() {
         return Err("JavaVM not available".into());
     }
-    Ok(JAVA_VM.get_or_init(|| unsafe {
-        JavaVM::from_raw(ptr as *mut jni::sys::JavaVM)
-    }))
+    Ok(JAVA_VM.get_or_init(|| unsafe { JavaVM::from_raw(ptr as *mut jni::sys::JavaVM) }))
 }
 
 /// Run a closure with an attached `jni::Env` for the current thread.
@@ -243,7 +244,12 @@ pub fn unicode_char_for_key_event(key_code: i32, action: i32, meta_state: i32) -
                 return Ok(0);
             }
         };
-        match env.call_method(&key_event, jni::jni_str!("getUnicodeChar"), jni::jni_sig!("(I)I"), &[JValue::Int(meta_state)]) {
+        match env.call_method(
+            &key_event,
+            jni::jni_str!("getUnicodeChar"),
+            jni::jni_sig!("(I)I"),
+            &[JValue::Int(meta_state)],
+        ) {
             Ok(v) => {
                 let c = v.i().unwrap_or(0);
                 Ok(if c > 0 { c as u32 } else { 0 })
@@ -526,15 +532,13 @@ pub fn run_event_loop(app: &AndroidApp) {
         // Non-blocking poll: process any pending events then immediately
         // continue to rendering. No sleep — the GPU present call
         // (get_current_texture / Mailbox) provides natural frame pacing.
-        app.poll_events(Some(Duration::ZERO), |event| {
-            match event {
-                PollEvent::Main(main_event) => {
-                    handle_main_event(app, main_event);
-                }
-                PollEvent::Wake => {}
-                PollEvent::Timeout => {}
-                _ => {}
+        app.poll_events(Some(Duration::ZERO), |event| match event {
+            PollEvent::Main(main_event) => {
+                handle_main_event(app, main_event);
             }
+            PollEvent::Wake => {}
+            PollEvent::Timeout => {}
+            _ => {}
         });
 
         // ── Deferred lifecycle processing ──
@@ -688,7 +692,9 @@ pub fn run_event_loop(app: &AndroidApp) {
                 if is_active != app_is_active {
                     log::info!(
                         "run_event_loop: active {} -> {} (iter={})",
-                        app_is_active, is_active, iteration,
+                        app_is_active,
+                        is_active,
+                        iteration,
                     );
                     app_is_active = is_active;
                 }
@@ -945,8 +951,9 @@ pub fn init_platform(app: &AndroidApp) -> &'static Arc<AndroidPlatform> {
 /// contend with the Android UI thread and intermittently deadlock.
 /// By caching the last applied style we skip the JNI calls entirely when
 /// nothing changed — which is the common case.
-static LAST_CHROME_STYLE: std::sync::Mutex<Option<(Option<u32>, Option<u32>, crate::StatusBarContentStyle)>> =
-    std::sync::Mutex::new(None);
+static LAST_CHROME_STYLE: std::sync::Mutex<
+    Option<(Option<u32>, Option<u32>, crate::StatusBarContentStyle)>,
+> = std::sync::Mutex::new(None);
 
 /// Apply system chrome styling on Android.
 ///
@@ -974,9 +981,17 @@ pub fn set_system_chrome(style: &crate::SystemChromeStyle) {
 
         // 1. Get the Window: activity.getWindow()
         let window = env
-            .call_method(&activity_obj, jni::jni_str!("getWindow"), jni::jni_sig!("()Landroid/view/Window;"), &[])
+            .call_method(
+                &activity_obj,
+                jni::jni_str!("getWindow"),
+                jni::jni_sig!("()Landroid/view/Window;"),
+                &[],
+            )
             .and_then(|v: jni::objects::JValueOwned| v.l())
-            .map_err(|e| { let _ = env.exception_clear(); e.to_string() })?;
+            .map_err(|e| {
+                let _ = env.exception_clear();
+                e.to_string()
+            })?;
         if window.is_null() {
             return Err("getWindow returned null".into());
         }
@@ -984,14 +999,24 @@ pub fn set_system_chrome(style: &crate::SystemChromeStyle) {
         // 2. Set status bar color if provided
         if let Some(color) = status_bar_color {
             let argb = (0xFF000000_u32 | color) as i32;
-            let _ = env.call_method(&window, jni::jni_str!("setStatusBarColor"), jni::jni_sig!("(I)V"), &[JValue::Int(argb)]);
+            let _ = env.call_method(
+                &window,
+                jni::jni_str!("setStatusBarColor"),
+                jni::jni_sig!("(I)V"),
+                &[JValue::Int(argb)],
+            );
             let _ = env.exception_clear();
         }
 
         // 3. Set navigation bar color if provided
         if let Some(color) = navigation_bar_color {
             let argb = (0xFF000000_u32 | color) as i32;
-            let _ = env.call_method(&window, jni::jni_str!("setNavigationBarColor"), jni::jni_sig!("(I)V"), &[JValue::Int(argb)]);
+            let _ = env.call_method(
+                &window,
+                jni::jni_str!("setNavigationBarColor"),
+                jni::jni_sig!("(I)V"),
+                &[JValue::Int(argb)],
+            );
             let _ = env.exception_clear();
         }
 
@@ -1024,12 +1049,22 @@ pub fn set_system_chrome(style: &crate::SystemChromeStyle) {
             let _ = env.exception_clear();
 
             if let Ok(decor) = env
-                .call_method(&window, jni::jni_str!("getDecorView"), jni::jni_sig!("()Landroid/view/View;"), &[])
+                .call_method(
+                    &window,
+                    jni::jni_str!("getDecorView"),
+                    jni::jni_sig!("()Landroid/view/View;"),
+                    &[],
+                )
                 .and_then(|v: jni::objects::JValueOwned| v.l())
             {
                 if !decor.is_null() {
                     if let Ok(current) = env
-                        .call_method(&decor, jni::jni_str!("getSystemUiVisibility"), jni::jni_sig!("()I"), &[])
+                        .call_method(
+                            &decor,
+                            jni::jni_str!("getSystemUiVisibility"),
+                            jni::jni_sig!("()I"),
+                            &[],
+                        )
                         .and_then(|v: jni::objects::JValueOwned| v.i())
                     {
                         let new_flags = match status_bar_style {
@@ -1057,7 +1092,9 @@ pub fn set_system_chrome(style: &crate::SystemChromeStyle) {
 
     log::info!(
         "set_system_chrome: status_bar_color={:?}, nav_bar_color={:?}, style={:?}",
-        style.status_bar_color, style.navigation_bar_color, style.status_bar_style
+        style.status_bar_color,
+        style.navigation_bar_color,
+        style.status_bar_style
     );
 }
 

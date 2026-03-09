@@ -6,10 +6,10 @@
 //!
 //! Feature-gated behind `contacts`.
 
-#[cfg(target_os = "ios")]
-mod ios;
 #[cfg(target_os = "android")]
 mod android;
+#[cfg(target_os = "ios")]
+mod ios;
 
 /// A phone number entry.
 #[derive(Debug, Clone)]
@@ -49,11 +49,17 @@ pub struct Contact {
 /// Requires contacts permission (use `permission_handler` to request first).
 pub fn get_contacts() -> Result<Vec<Contact>, String> {
     #[cfg(target_os = "ios")]
-    { ios::get_contacts() }
+    {
+        ios::get_contacts()
+    }
     #[cfg(target_os = "android")]
-    { android::get_contacts() }
+    {
+        android::get_contacts()
+    }
     #[cfg(not(any(target_os = "ios", target_os = "android")))]
-    { Ok(Vec::new()) }
+    {
+        Ok(Vec::new())
+    }
 }
 
 /// Search contacts by name query.
@@ -61,11 +67,18 @@ pub fn get_contacts() -> Result<Vec<Contact>, String> {
 /// Requires contacts permission.
 pub fn search_contacts(query: &str) -> Result<Vec<Contact>, String> {
     #[cfg(target_os = "ios")]
-    { ios::search_contacts(query) }
+    {
+        ios::search_contacts(query)
+    }
     #[cfg(target_os = "android")]
-    { android::search_contacts(query) }
+    {
+        android::search_contacts(query)
+    }
     #[cfg(not(any(target_os = "ios", target_os = "android")))]
-    { let _ = query; Ok(Vec::new()) }
+    {
+        let _ = query;
+        Ok(Vec::new())
+    }
 }
 
 /// Get a single contact by ID.
@@ -73,9 +86,16 @@ pub fn search_contacts(query: &str) -> Result<Vec<Contact>, String> {
 /// Requires contacts permission.
 pub fn get_contact(id: &str) -> Result<Option<Contact>, String> {
     #[cfg(target_os = "ios")]
-    { ios::get_contact(id) }
+    {
+        ios::get_contact(id)
+    }
     #[cfg(target_os = "android")]
-    { android::get_contact(id) }
+    {
+        android::get_contact(id)
+    }
     #[cfg(not(any(target_os = "ios", target_os = "android")))]
-    { let _ = id; Ok(None) }
+    {
+        let _ = id;
+        Ok(None)
+    }
 }

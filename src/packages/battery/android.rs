@@ -57,7 +57,12 @@ pub fn is_battery_save_mode() -> bool {
 
         // pm.isPowerSaveMode()
         match env
-            .call_method(&pm, jni::jni_str!("isPowerSaveMode"), jni::jni_sig!("()Z"), &[])
+            .call_method(
+                &pm,
+                jni::jni_str!("isPowerSaveMode"),
+                jni::jni_sig!("()Z"),
+                &[],
+            )
             .and_then(|v| v.z())
         {
             Ok(v) => Ok(v),

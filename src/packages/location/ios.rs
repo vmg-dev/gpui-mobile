@@ -92,9 +92,17 @@ unsafe fn parse_cl_location(location: *mut Object) -> Position {
         altitude,
         accuracy: horizontal_accuracy,
         speed: if speed < 0.0 { 0.0 } else { speed },
-        speed_accuracy: if speed_accuracy < 0.0 { 0.0 } else { speed_accuracy },
+        speed_accuracy: if speed_accuracy < 0.0 {
+            0.0
+        } else {
+            speed_accuracy
+        },
         heading: if course < 0.0 { 0.0 } else { course },
-        heading_accuracy: if course_accuracy < 0.0 { 0.0 } else { course_accuracy },
+        heading_accuracy: if course_accuracy < 0.0 {
+            0.0
+        } else {
+            course_accuracy
+        },
         timestamp: timestamp_millis,
     }
 }

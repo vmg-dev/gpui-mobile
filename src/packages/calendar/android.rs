@@ -54,7 +54,11 @@ pub fn get_calendars() -> Result<Vec<Calendar>, String> {
     })
 }
 
-pub fn get_events(calendar_id: &str, start_ms: i64, end_ms: i64) -> Result<Vec<CalendarEvent>, String> {
+pub fn get_events(
+    calendar_id: &str,
+    start_ms: i64,
+    end_ms: i64,
+) -> Result<Vec<CalendarEvent>, String> {
     let calendar_id = calendar_id.to_owned();
     jni_helpers::with_env(|env| {
         let activity = jni_helpers::activity(env)?;

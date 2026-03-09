@@ -16,7 +16,6 @@
 //! crate.  When wired into a real GPUI workspace, swap the `super::*` imports
 //! for the canonical `gpui::*` equivalents.
 
-
 use super::{Bounds, DevicePixels, Pixels, Point, Size};
 use anyhow::Result;
 use gpui::{self, DisplayId, PlatformDisplay};
@@ -84,10 +83,7 @@ impl AndroidDisplay {
     }
 
     /// Create an `AndroidDisplay` and query density from an `AssetManager`.
-    pub fn from_activity(
-        window: &NativeWindow,
-        asset_manager: &AssetManager,
-    ) -> Self {
+    pub fn from_activity(window: &NativeWindow, asset_manager: &AssetManager) -> Self {
         let config = Configuration::from_asset_manager(asset_manager);
         let density_dpi = config.density().unwrap_or(DENSITY_DEFAULT as u32) as i32;
         Self::from_window(window, density_dpi)

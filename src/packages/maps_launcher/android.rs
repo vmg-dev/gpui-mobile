@@ -1,7 +1,11 @@
 use crate::android::jni::{self as jni_helpers, JniExt};
 use jni::objects::JValue;
 
-pub fn open_coordinates(latitude: f64, longitude: f64, label: Option<&str>) -> Result<bool, String> {
+pub fn open_coordinates(
+    latitude: f64,
+    longitude: f64,
+    label: Option<&str>,
+) -> Result<bool, String> {
     let label = label.map(|s| s.to_owned());
     jni_helpers::with_env(|env| {
         let activity = jni_helpers::activity(env)?;
@@ -9,10 +13,16 @@ pub fn open_coordinates(latitude: f64, longitude: f64, label: Option<&str>) -> R
         let uri_str = match &label {
             Some(l) => format!(
                 "geo:{},{}?q={},{}({})",
-                latitude, longitude, latitude, longitude,
+                latitude,
+                longitude,
+                latitude,
+                longitude,
                 percent_encode(l)
             ),
-            None => format!("geo:{},{}?q={},{}", latitude, longitude, latitude, longitude),
+            None => format!(
+                "geo:{},{}?q={},{}",
+                latitude, longitude, latitude, longitude
+            ),
         };
 
         let intent = create_geo_intent(env, &uri_str)?;
@@ -81,12 +91,14 @@ pub fn open_directions(
 
         // Set package to Google Maps
         let pkg = env.new_string("com.google.android.apps.maps").e()?;
-        let _ = env.call_method(
-            &intent,
-            jni::jni_str!("setPackage"),
-            jni::jni_sig!("(Ljava/lang/String;)Landroid/content/Intent;"),
-            &[JValue::Object(&pkg)],
-        ).e()?;
+        let _ = env
+            .call_method(
+                &intent,
+                jni::jni_str!("setPackage"),
+                jni::jni_sig!("(Ljava/lang/String;)Landroid/content/Intent;"),
+                &[JValue::Object(&pkg)],
+            )
+            .e()?;
 
         match env.call_method(
             &activity,

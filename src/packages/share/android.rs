@@ -36,7 +36,10 @@ pub fn share_text(text: &str, subject: Option<&str>) -> Result<(), String> {
                 &intent,
                 jni::jni_str!("putExtra"),
                 jni::jni_sig!("(Ljava/lang/String;Ljava/lang/String;)Landroid/content/Intent;"),
-                &[JValue::Object(&extra_text_key), JValue::Object(&extra_text_val)],
+                &[
+                    JValue::Object(&extra_text_key),
+                    JValue::Object(&extra_text_val),
+                ],
             )
             .e()?;
 
@@ -49,19 +52,26 @@ pub fn share_text(text: &str, subject: Option<&str>) -> Result<(), String> {
                     &intent,
                     jni::jni_str!("putExtra"),
                     jni::jni_sig!("(Ljava/lang/String;Ljava/lang/String;)Landroid/content/Intent;"),
-                    &[JValue::Object(&extra_subj_key), JValue::Object(&extra_subj_val)],
+                    &[
+                        JValue::Object(&extra_subj_key),
+                        JValue::Object(&extra_subj_val),
+                    ],
                 )
                 .e()?;
         }
 
         // Intent chooser = Intent.createChooser(intent, "Share")
         let chooser_title = env.new_string("Share").e()?;
-        let chooser_cls = env.find_class(jni::jni_str!("android/content/Intent")).e()?;
+        let chooser_cls = env
+            .find_class(jni::jni_str!("android/content/Intent"))
+            .e()?;
         let chooser = env
             .call_static_method(
                 &chooser_cls,
                 jni::jni_str!("createChooser"),
-                jni::jni_sig!("(Landroid/content/Intent;Ljava/lang/CharSequence;)Landroid/content/Intent;"),
+                jni::jni_sig!(
+                    "(Landroid/content/Intent;Ljava/lang/CharSequence;)Landroid/content/Intent;"
+                ),
                 &[JValue::Object(&intent), JValue::Object(&chooser_title)],
             )
             .and_then(|v| v.l())

@@ -39,7 +39,9 @@ unsafe impl Send for IosAppState {}
 unsafe impl Sync for IosAppState {}
 
 // Safety wrapper for window list - only accessed from main thread
-pub(crate) struct WindowListWrapper(pub(crate) std::cell::UnsafeCell<Vec<*const super::window::IosWindow>>);
+pub(crate) struct WindowListWrapper(
+    pub(crate) std::cell::UnsafeCell<Vec<*const super::window::IosWindow>>,
+);
 unsafe impl Send for WindowListWrapper {}
 unsafe impl Sync for WindowListWrapper {}
 
@@ -408,7 +410,9 @@ pub extern "C" fn gpui_ios_handle_open_url(url_ptr: *mut c_void) {
         if cstr.is_null() {
             return;
         }
-        std::ffi::CStr::from_ptr(cstr).to_string_lossy().into_owned()
+        std::ffi::CStr::from_ptr(cstr)
+            .to_string_lossy()
+            .into_owned()
     };
 
     log::info!("GPUI iOS: Received deep link: {}", url_string);

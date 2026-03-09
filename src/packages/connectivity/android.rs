@@ -26,7 +26,12 @@ pub fn check_connectivity() -> ConnectivityStatus {
 
         // cm.getActiveNetworkInfo() → NetworkInfo
         let net_info = match env
-            .call_method(&cm, jni::jni_str!("getActiveNetworkInfo"), jni::jni_sig!("()Landroid/net/NetworkInfo;"), &[])
+            .call_method(
+                &cm,
+                jni::jni_str!("getActiveNetworkInfo"),
+                jni::jni_sig!("()Landroid/net/NetworkInfo;"),
+                &[],
+            )
             .and_then(|v| v.l())
         {
             Ok(o) if !o.is_null() => o,
@@ -38,7 +43,12 @@ pub fn check_connectivity() -> ConnectivityStatus {
 
         // networkInfo.isConnected()
         let connected = match env
-            .call_method(&net_info, jni::jni_str!("isConnected"), jni::jni_sig!("()Z"), &[])
+            .call_method(
+                &net_info,
+                jni::jni_str!("isConnected"),
+                jni::jni_sig!("()Z"),
+                &[],
+            )
             .and_then(|v| v.z())
         {
             Ok(c) => c,
@@ -53,12 +63,17 @@ pub fn check_connectivity() -> ConnectivityStatus {
 
         // networkInfo.getType()
         match env
-            .call_method(&net_info, jni::jni_str!("getType"), jni::jni_sig!("()I"), &[])
+            .call_method(
+                &net_info,
+                jni::jni_str!("getType"),
+                jni::jni_sig!("()I"),
+                &[],
+            )
             .and_then(|v| v.i())
         {
             Ok(1) => Ok(ConnectivityStatus::Wifi),     // TYPE_WIFI
-            Ok(0) => Ok(ConnectivityStatus::Cellular),  // TYPE_MOBILE
-            Ok(_) => Ok(ConnectivityStatus::Wifi),      // Ethernet etc. treated as Wifi
+            Ok(0) => Ok(ConnectivityStatus::Cellular), // TYPE_MOBILE
+            Ok(_) => Ok(ConnectivityStatus::Wifi),     // Ethernet etc. treated as Wifi
             Err(_) => {
                 let _ = env.exception_clear();
                 Ok(ConnectivityStatus::None)

@@ -1,9 +1,9 @@
 //! Microphone — audio recording support.
 
-#[cfg(target_os = "ios")]
-mod ios;
 #[cfg(target_os = "android")]
 mod android;
+#[cfg(target_os = "ios")]
+mod ios;
 
 /// Audio recording format.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -58,70 +58,113 @@ pub struct Recording {
 /// Check if audio recording is available.
 pub fn is_available() -> bool {
     #[cfg(target_os = "ios")]
-    { ios::is_available() }
+    {
+        ios::is_available()
+    }
     #[cfg(target_os = "android")]
-    { android::is_available() }
+    {
+        android::is_available()
+    }
     #[cfg(not(any(target_os = "ios", target_os = "android")))]
-    { false }
+    {
+        false
+    }
 }
 
 /// Start recording audio with the given configuration.
 /// Returns the path where audio will be saved.
 pub fn start_recording(config: &RecordingConfig) -> Result<String, String> {
     #[cfg(target_os = "ios")]
-    { ios::start_recording(config) }
+    {
+        ios::start_recording(config)
+    }
     #[cfg(target_os = "android")]
-    { android::start_recording(config) }
+    {
+        android::start_recording(config)
+    }
     #[cfg(not(any(target_os = "ios", target_os = "android")))]
-    { let _ = config; Err("microphone is only available on iOS and Android".into()) }
+    {
+        let _ = config;
+        Err("microphone is only available on iOS and Android".into())
+    }
 }
 
 /// Stop recording and return the recording result.
 pub fn stop_recording() -> Result<Recording, String> {
     #[cfg(target_os = "ios")]
-    { ios::stop_recording() }
+    {
+        ios::stop_recording()
+    }
     #[cfg(target_os = "android")]
-    { android::stop_recording() }
+    {
+        android::stop_recording()
+    }
     #[cfg(not(any(target_os = "ios", target_os = "android")))]
-    { Err("microphone is only available on iOS and Android".into()) }
+    {
+        Err("microphone is only available on iOS and Android".into())
+    }
 }
 
 /// Check if currently recording.
 pub fn is_recording() -> bool {
     #[cfg(target_os = "ios")]
-    { ios::is_recording() }
+    {
+        ios::is_recording()
+    }
     #[cfg(target_os = "android")]
-    { android::is_recording() }
+    {
+        android::is_recording()
+    }
     #[cfg(not(any(target_os = "ios", target_os = "android")))]
-    { false }
+    {
+        false
+    }
 }
 
 /// Pause the current recording (if supported).
 pub fn pause_recording() -> Result<(), String> {
     #[cfg(target_os = "ios")]
-    { ios::pause_recording() }
+    {
+        ios::pause_recording()
+    }
     #[cfg(target_os = "android")]
-    { android::pause_recording() }
+    {
+        android::pause_recording()
+    }
     #[cfg(not(any(target_os = "ios", target_os = "android")))]
-    { Err("microphone is only available on iOS and Android".into()) }
+    {
+        Err("microphone is only available on iOS and Android".into())
+    }
 }
 
 /// Resume a paused recording.
 pub fn resume_recording() -> Result<(), String> {
     #[cfg(target_os = "ios")]
-    { ios::resume_recording() }
+    {
+        ios::resume_recording()
+    }
     #[cfg(target_os = "android")]
-    { android::resume_recording() }
+    {
+        android::resume_recording()
+    }
     #[cfg(not(any(target_os = "ios", target_os = "android")))]
-    { Err("microphone is only available on iOS and Android".into()) }
+    {
+        Err("microphone is only available on iOS and Android".into())
+    }
 }
 
 /// Get the current amplitude (0.0 to 1.0) if recording.
 pub fn get_amplitude() -> Result<f64, String> {
     #[cfg(target_os = "ios")]
-    { ios::get_amplitude() }
+    {
+        ios::get_amplitude()
+    }
     #[cfg(target_os = "android")]
-    { android::get_amplitude() }
+    {
+        android::get_amplitude()
+    }
     #[cfg(not(any(target_os = "ios", target_os = "android")))]
-    { Err("microphone is only available on iOS and Android".into()) }
+    {
+        Err("microphone is only available on iOS and Android".into())
+    }
 }

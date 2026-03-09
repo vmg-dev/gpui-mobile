@@ -10,10 +10,10 @@
 //!
 //! Feature-gated behind `permission_handler`.
 
-#[cfg(target_os = "ios")]
-mod ios;
 #[cfg(target_os = "android")]
 mod android;
+#[cfg(target_os = "ios")]
+mod ios;
 
 /// A permission that can be requested from the user.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -115,11 +115,18 @@ pub enum ServiceStatus {
 /// Check the current status of a permission without prompting the user.
 pub fn check_permission(permission: Permission) -> Result<PermissionStatus, String> {
     #[cfg(target_os = "ios")]
-    { ios::check_permission(permission) }
+    {
+        ios::check_permission(permission)
+    }
     #[cfg(target_os = "android")]
-    { android::check_permission(permission) }
+    {
+        android::check_permission(permission)
+    }
     #[cfg(not(any(target_os = "ios", target_os = "android")))]
-    { let _ = permission; Err("permission_handler is only available on iOS and Android".into()) }
+    {
+        let _ = permission;
+        Err("permission_handler is only available on iOS and Android".into())
+    }
 }
 
 /// Request a permission from the user.
@@ -129,23 +136,39 @@ pub fn check_permission(permission: Permission) -> Result<PermissionStatus, Stri
 /// Otherwise, shows the system permission dialog and returns the user's choice.
 pub fn request_permission(permission: Permission) -> Result<PermissionStatus, String> {
     #[cfg(target_os = "ios")]
-    { ios::request_permission(permission) }
+    {
+        ios::request_permission(permission)
+    }
     #[cfg(target_os = "android")]
-    { android::request_permission(permission) }
+    {
+        android::request_permission(permission)
+    }
     #[cfg(not(any(target_os = "ios", target_os = "android")))]
-    { let _ = permission; Err("permission_handler is only available on iOS and Android".into()) }
+    {
+        let _ = permission;
+        Err("permission_handler is only available on iOS and Android".into())
+    }
 }
 
 /// Request multiple permissions at once.
 ///
 /// Returns a map of permission → status for each requested permission.
-pub fn request_permissions(permissions: &[Permission]) -> Result<Vec<(Permission, PermissionStatus)>, String> {
+pub fn request_permissions(
+    permissions: &[Permission],
+) -> Result<Vec<(Permission, PermissionStatus)>, String> {
     #[cfg(target_os = "ios")]
-    { ios::request_permissions(permissions) }
+    {
+        ios::request_permissions(permissions)
+    }
     #[cfg(target_os = "android")]
-    { android::request_permissions(permissions) }
+    {
+        android::request_permissions(permissions)
+    }
     #[cfg(not(any(target_os = "ios", target_os = "android")))]
-    { let _ = permissions; Err("permission_handler is only available on iOS and Android".into()) }
+    {
+        let _ = permissions;
+        Err("permission_handler is only available on iOS and Android".into())
+    }
 }
 
 /// Check the status of a platform service associated with a permission.
@@ -153,11 +176,18 @@ pub fn request_permissions(permissions: &[Permission]) -> Result<Vec<(Permission
 /// For example, `Permission::LocationWhenInUse` checks if Location Services is enabled.
 pub fn service_status(permission: Permission) -> Result<ServiceStatus, String> {
     #[cfg(target_os = "ios")]
-    { ios::service_status(permission) }
+    {
+        ios::service_status(permission)
+    }
     #[cfg(target_os = "android")]
-    { android::service_status(permission) }
+    {
+        android::service_status(permission)
+    }
     #[cfg(not(any(target_os = "ios", target_os = "android")))]
-    { let _ = permission; Err("permission_handler is only available on iOS and Android".into()) }
+    {
+        let _ = permission;
+        Err("permission_handler is only available on iOS and Android".into())
+    }
 }
 
 /// Open the app's settings page so the user can manually change permissions.
@@ -165,11 +195,17 @@ pub fn service_status(permission: Permission) -> Result<ServiceStatus, String> {
 /// This is useful when a permission is permanently denied.
 pub fn open_app_settings() -> Result<bool, String> {
     #[cfg(target_os = "ios")]
-    { ios::open_app_settings() }
+    {
+        ios::open_app_settings()
+    }
     #[cfg(target_os = "android")]
-    { android::open_app_settings() }
+    {
+        android::open_app_settings()
+    }
     #[cfg(not(any(target_os = "ios", target_os = "android")))]
-    { Err("permission_handler is only available on iOS and Android".into()) }
+    {
+        Err("permission_handler is only available on iOS and Android".into())
+    }
 }
 
 /// Check whether the app should show a rationale for requesting a permission.
@@ -178,9 +214,17 @@ pub fn open_app_settings() -> Result<bool, String> {
 /// but has not checked "Don't ask again". On iOS, always returns `false`.
 pub fn should_show_request_rationale(permission: Permission) -> Result<bool, String> {
     #[cfg(target_os = "ios")]
-    { let _ = permission; Ok(false) }
+    {
+        let _ = permission;
+        Ok(false)
+    }
     #[cfg(target_os = "android")]
-    { android::should_show_request_rationale(permission) }
+    {
+        android::should_show_request_rationale(permission)
+    }
     #[cfg(not(any(target_os = "ios", target_os = "android")))]
-    { let _ = permission; Err("permission_handler is only available on iOS and Android".into()) }
+    {
+        let _ = permission;
+        Err("permission_handler is only available on iOS and Android".into())
+    }
 }

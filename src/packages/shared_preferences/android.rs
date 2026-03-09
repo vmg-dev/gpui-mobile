@@ -57,14 +57,15 @@ impl AndroidSharedPreferences {
                 return Ok(None);
             }
             let jkey = env.new_string(&key).map_err(|e| e.to_string())?;
-            let val = env.call_method(
-                &prefs,
-                jni::jni_str!("getLong"),
-                jni::jni_sig!("(Ljava/lang/String;J)J"),
-                &[JValue::Object(&jkey), JValue::Long(0)],
-            )
-            .and_then(|v| v.j())
-            .map_err(|e| e.to_string())?;
+            let val = env
+                .call_method(
+                    &prefs,
+                    jni::jni_str!("getLong"),
+                    jni::jni_sig!("(Ljava/lang/String;J)J"),
+                    &[JValue::Object(&jkey), JValue::Long(0)],
+                )
+                .and_then(|v| v.j())
+                .map_err(|e| e.to_string())?;
             Ok(Some(val))
         })
         .ok()
@@ -93,14 +94,15 @@ impl AndroidSharedPreferences {
                 return Ok(None);
             }
             let jkey = env.new_string(&key).map_err(|e| e.to_string())?;
-            let val = env.call_method(
-                &prefs,
-                jni::jni_str!("getBoolean"),
-                jni::jni_sig!("(Ljava/lang/String;Z)Z"),
-                &[JValue::Object(&jkey), JValue::Bool(false)],
-            )
-            .and_then(|v| v.z())
-            .map_err(|e| e.to_string())?;
+            let val = env
+                .call_method(
+                    &prefs,
+                    jni::jni_str!("getBoolean"),
+                    jni::jni_sig!("(Ljava/lang/String;Z)Z"),
+                    &[JValue::Object(&jkey), JValue::Bool(false)],
+                )
+                .and_then(|v| v.z())
+                .map_err(|e| e.to_string())?;
             Ok(Some(val))
         })
         .ok()
@@ -154,12 +156,7 @@ impl AndroidSharedPreferences {
         .unwrap_or(false)
     }
 
-    fn contains_key_jni(
-        &self,
-        env: &mut jni::Env<'_>,
-        prefs: &JObject<'_>,
-        key: &str,
-    ) -> bool {
+    fn contains_key_jni(&self, env: &mut jni::Env<'_>, prefs: &JObject<'_>, key: &str) -> bool {
         let jkey = match env.new_string(key) {
             Ok(k) => k,
             Err(_) => return false,
@@ -176,9 +173,7 @@ impl AndroidSharedPreferences {
 }
 
 /// Get default SharedPreferences via PreferenceManager.
-fn get_default_prefs<'local>(
-    env: &mut jni::Env<'local>,
-) -> Option<JObject<'local>> {
+fn get_default_prefs<'local>(env: &mut jni::Env<'local>) -> Option<JObject<'local>> {
     let activity = jni_helpers::activity(env).ok()?;
     let prefs = env
         .call_static_method(
@@ -189,7 +184,11 @@ fn get_default_prefs<'local>(
         )
         .and_then(|v| v.l())
         .ok()?;
-    if prefs.is_null() { None } else { Some(prefs) }
+    if prefs.is_null() {
+        None
+    } else {
+        Some(prefs)
+    }
 }
 
 /// Get an editor, run the callback, then commit.
@@ -197,8 +196,8 @@ fn with_editor(
     f: impl FnOnce(&mut jni::Env<'_>, &JObject<'_>) -> Result<(), String>,
 ) -> Result<(), String> {
     jni_helpers::with_env(|env| {
-        let prefs = get_default_prefs(env)
-            .ok_or_else(|| "Failed to get SharedPreferences".to_string())?;
+        let prefs =
+            get_default_prefs(env).ok_or_else(|| "Failed to get SharedPreferences".to_string())?;
 
         let editor = env
             .call_method(

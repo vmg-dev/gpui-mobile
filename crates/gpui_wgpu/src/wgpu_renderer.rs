@@ -272,9 +272,15 @@ impl WgpuRenderer {
             // Fifo blocks on VSync and can deadlock if the compositor is
             // frozen during a lifecycle transition (TerminateWindow/InitWindow).
             // Fall back to AutoNoVsync if the surface doesn't support Mailbox.
-            present_mode: if surface_caps.present_modes.contains(&wgpu::PresentMode::Mailbox) {
+            present_mode: if surface_caps
+                .present_modes
+                .contains(&wgpu::PresentMode::Mailbox)
+            {
                 wgpu::PresentMode::Mailbox
-            } else if surface_caps.present_modes.contains(&wgpu::PresentMode::AutoNoVsync) {
+            } else if surface_caps
+                .present_modes
+                .contains(&wgpu::PresentMode::AutoNoVsync)
+            {
                 wgpu::PresentMode::AutoNoVsync
             } else {
                 wgpu::PresentMode::Fifo

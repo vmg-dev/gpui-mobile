@@ -142,10 +142,7 @@ unsafe fn nsstring(s: &str) -> *mut Object {
     let cls = class!(NSString);
     let bytes = s.as_ptr();
     let len = s.len();
-    let obj: *mut Object = msg_send![
-        cls,
-        alloc
-    ];
+    let obj: *mut Object = msg_send![cls, alloc];
     msg_send![
         obj,
         initWithBytes: bytes

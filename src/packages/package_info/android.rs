@@ -8,7 +8,12 @@ pub fn get_package_info() -> Result<PackageInfo, String> {
 
         // activity.getPackageName() → String
         let pkg_name_obj = env
-            .call_method(&activity, jni::jni_str!("getPackageName"), jni::jni_sig!("()Ljava/lang/String;"), &[])
+            .call_method(
+                &activity,
+                jni::jni_str!("getPackageName"),
+                jni::jni_sig!("()Ljava/lang/String;"),
+                &[],
+            )
             .and_then(|v| v.l())
             .e()?;
         let package_name = get_string(env, &pkg_name_obj);
@@ -44,7 +49,11 @@ pub fn get_package_info() -> Result<PackageInfo, String> {
 
         // versionName: String
         let version = match env
-            .get_field(&pkg_info, jni::jni_str!("versionName"), jni::jni_sig!("Ljava/lang/String;"))
+            .get_field(
+                &pkg_info,
+                jni::jni_str!("versionName"),
+                jni::jni_sig!("Ljava/lang/String;"),
+            )
             .and_then(|v| v.l())
         {
             Ok(vn) => get_string(env, &vn),
@@ -92,7 +101,12 @@ pub fn get_package_info() -> Result<PackageInfo, String> {
                 return None;
             }
             let label = env
-                .call_method(&cs, jni::jni_str!("toString"), jni::jni_sig!("()Ljava/lang/String;"), &[])
+                .call_method(
+                    &cs,
+                    jni::jni_str!("toString"),
+                    jni::jni_sig!("()Ljava/lang/String;"),
+                    &[],
+                )
                 .and_then(|v| v.l())
                 .ok()?;
             Some(get_string(env, &label))

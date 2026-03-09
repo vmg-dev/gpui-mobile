@@ -97,8 +97,6 @@ jobs:
   android:
     name: Android Build (aarch64)
     runs-on: ubuntu-latest
-    env:
-      ANDROID_NDK_VERSION: "27.0.12077973"
     steps:
       - uses: actions/checkout@v6
 
@@ -112,16 +110,15 @@ jobs:
         with:
           accept-android-sdk-licenses: true
 
-      - name: Install NDK
+      - name: Resolve NDK path
         run: |
-          sdkmanager --install "ndk;${{ env.ANDROID_NDK_VERSION }}"
-          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/${{ env.ANDROID_NDK_VERSION }}" >> "$GITHUB_ENV"
+          # Use the NDK provided by setup-android (ANDROID_NDK_ROOT)
+          echo "ANDROID_NDK_HOME=$ANDROID_NDK_ROOT" >> "$GITHUB_ENV"
 
       - name: Add NDK toolchain to PATH
         run: |
-          TOOLCHAIN_DIR="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin"
+          TOOLCHAIN_DIR="$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/bin"
           echo "$TOOLCHAIN_DIR" >> "$GITHUB_PATH"
-          # Verify the linker / compiler is available
           ls "$TOOLCHAIN_DIR"/aarch64-linux-android*-clang || true
 
       - name: Configure Cargo for Android cross-compilation
@@ -157,8 +154,6 @@ jobs:
     name: Android APK (Gradle)
     runs-on: ubuntu-latest
     needs: android
-    env:
-      ANDROID_NDK_VERSION: "27.0.12077973"
     steps:
       - uses: actions/checkout@v6
 
@@ -175,10 +170,9 @@ jobs:
         with:
           accept-android-sdk-licenses: true
 
-      - name: Install NDK
+      - name: Resolve NDK path
         run: |
-          sdkmanager --install "ndk;${{ env.ANDROID_NDK_VERSION }}"
-          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/${{ env.ANDROID_NDK_VERSION }}" >> "$GITHUB_ENV"
+          echo "ANDROID_NDK_HOME=$ANDROID_NDK_ROOT" >> "$GITHUB_ENV"
 
       - name: Set up JDK 17
         uses: actions/setup-java@v5

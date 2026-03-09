@@ -120,8 +120,7 @@ pub fn authenticate(reason: &str) -> Result<AuthResult, String> {
         }
 
         // Create NSString for reason
-        let reason_nsstring: *mut Object =
-            msg_send![class!(NSString), alloc];
+        let reason_nsstring: *mut Object = msg_send![class!(NSString), alloc];
         let reason_bytes = reason.as_bytes();
         let reason_nsstring: *mut Object = msg_send![
             reason_nsstring,
@@ -180,7 +179,10 @@ pub fn authenticate(reason: &str) -> Result<AuthResult, String> {
 
         // Read the result
         let result_box = Box::from_raw(result_holder);
-        let auth_result = result_box.lock().map(|g| *g).unwrap_or(AuthResult::ErrorOther);
+        let auth_result = result_box
+            .lock()
+            .map(|g| *g)
+            .unwrap_or(AuthResult::ErrorOther);
 
         let _: () = msg_send![reason_nsstring, release];
         let _: () = msg_send![context, release];
