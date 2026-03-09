@@ -139,6 +139,8 @@ pub fn set_system_chrome(style: &SystemChromeStyle) {
 use std::cell::RefCell;
 use std::sync::atomic::{AtomicBool, Ordering};
 
+type TextInputCallbackFn = Box<dyn FnMut(&str)>;
+
 /// Global flag indicating that text input was received and a re-render is needed.
 ///
 /// GPUI only redraws when its invalidator is dirty. Since `dispatch_text_input`
@@ -151,14 +153,14 @@ pub static TEXT_INPUT_DIRTY: AtomicBool = AtomicBool::new(false);
 thread_local! {
     /// Global text input callback — set by the active text input component.
     /// When the software keyboard sends text, this callback is invoked.
-    static TEXT_INPUT_CALLBACK: RefCell<Option<Box<dyn FnMut(&str)>>> = RefCell::new(None);
+    static TEXT_INPUT_CALLBACK: RefCell<Option<TextInputCallbackFn>> = RefCell::new(None);
 }
 
 /// Register a callback that receives text from the software keyboard.
 ///
 /// Only one callback can be active at a time. Call with `None` to clear it.
 /// This is typically called by the text input component when it gains focus.
-pub fn set_text_input_callback(callback: Option<Box<dyn FnMut(&str)>>) {
+pub fn set_text_input_callback(callback: Option<TextInputCallbackFn>) {
     TEXT_INPUT_CALLBACK.with(|cb| {
         *cb.borrow_mut() = callback;
     });
