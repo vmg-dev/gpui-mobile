@@ -154,6 +154,7 @@ pub mod display;
 pub mod jni;
 pub mod keyboard;
 pub mod platform;
+pub mod platform_view;
 pub mod window;
 
 // ── public re-exports ─────────────────────────────────────────────────────────

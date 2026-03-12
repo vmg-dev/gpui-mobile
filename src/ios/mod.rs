@@ -15,6 +15,7 @@ mod platform;
 mod text_input;
 mod text_system;
 mod window;
+pub mod platform_view;
 
 pub(crate) use dispatcher::*;
 pub(crate) use display::*;

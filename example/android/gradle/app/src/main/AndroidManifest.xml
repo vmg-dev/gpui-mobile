@@ -88,20 +88,22 @@
     >
 
         <!--
-          NativeActivity — the Android framework loads the specified native
-          library and calls ANativeActivity_onCreate(), which is defined in
-          gpui_mobile::android::jni.
+          GpuiActivity extends NativeActivity and integrates the AndroidX
+          SplashScreen API.  The splash screen is held visible until the
+          Rust native library signals readiness via NATIVE_INITIALIZED.
 
-          The spawned Rust thread then calls gpui_android_main() (defined in
-          the android_app example) to start the application.
+          The Android framework loads the specified native library and calls
+          ANativeActivity_onCreate(), which is defined in gpui_mobile::android::jni.
+          The spawned Rust thread calls gpui_android_main() (defined in the
+          android_app example) to start the application.
         -->
         <activity
-            android:name="android.app.NativeActivity"
+            android:name="dev.gpui.mobile.GpuiActivity"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|keyboard|navigation|uiMode|density"
             android:exported="true"
             android:launchMode="singleTask"
             android:screenOrientation="unspecified"
-            android:theme="@style/GpuiTheme"
+            android:theme="@style/GpuiSplashTheme"
             android:windowSoftInputMode="adjustResize"
         >
 

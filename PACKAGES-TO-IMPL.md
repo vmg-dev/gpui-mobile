@@ -1,6 +1,17 @@
-and for the keyboard handling for android and ios see https://raw.githubusercontent.com/zed-industries/zed/refs/heads/main/crates/gpui_macos/src/events.rs
-  https://raw.githubusercontent.com/zed-industries/zed/refs/heads/main/crates/gpui_macos/src/keyboard.rs and 
-  
+## Platform Views (Native View Embedding)
+
+See TODO.md for full implementation plan covering:
+- `PlatformView` trait and `PlatformViewRegistry` in core
+- Android: JNI bridge, hybrid composition via `FrameLayout`, input forwarding, lifecycle
+- iOS: Obj-C bridge, `UIView` subview composition, input forwarding, lifecycle
+- `TargetPlatform` enum for runtime platform detection
+
+Reference:
+- https://docs.flutter.dev/platform-integration/ios/platform-views
+- https://docs.flutter.dev/platform-integration/android/platform-views
+
+---
+
 We implement the basic packages used in the apps in the `src/packages` module (e.g., `src/packages/connectivity`, `src/packages/sensors`, etc.). Feature-gate each package. Visit the GitHub repo of each package, review the source code, and implement the complete functionality. Also check the example code to understand usage. Implement in the following order of priority:
 
 eg: src/packages/connectivity/mod.rs,android/,ios/ etc., we can have a common interface in mod.rs and platform-specific implementations in android/ and ios/ folders. The mod.rs file can use conditional compilation to include the appropriate platform-specific implementation based on the target platform.

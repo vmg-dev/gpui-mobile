@@ -637,6 +637,16 @@ impl IosWindow {
         }
     }
 
+    /// Get the raw pointer to the UIViewController.
+    pub fn view_controller_ptr(&self) -> *mut Object {
+        self.view_controller
+    }
+
+    /// Get the raw pointer to the GPUIMetalView.
+    pub fn metal_view_ptr(&self) -> *mut Object {
+        self.view
+    }
+
     /// Register this window with the FFI layer after it's been stored.
     /// This must be called after the window is placed at a stable address
     /// (e.g., in a Box or Arc).

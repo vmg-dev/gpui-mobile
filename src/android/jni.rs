@@ -53,6 +53,13 @@ use std::{
 /// recreated on resume the init callbacks run again.
 static INIT_WINDOW_DONE: AtomicBool = AtomicBool::new(false);
 
+/// Whether the GPUI native library has completed initialization.
+///
+/// Set to `true` after the first frame is rendered. This can be queried
+/// via JNI by a custom Activity to dismiss the splash screen, although
+/// with NativeActivity the system splash handles this automatically.
+pub static NATIVE_INITIALIZED: AtomicBool = AtomicBool::new(false);
+
 /// Deferred lifecycle flags.
 ///
 /// We must NOT call `win.set_active()` or `platform.did_enter_background()`
@@ -383,6 +390,47 @@ fn process_input_events(app: &AndroidApp) {
                                 pointer_count,
                             );
 
+                            // Check if this touch lands on a platform view.
+                            //
+                            // On Android with NativeActivity, ALL touch events go
+                            // to the native surface first. Platform views are real
+                            // Java Views in a FrameLayout overlay, but they won't
+                            // receive touches unless we skip GPUI dispatch and let
+                            // Android's view hierarchy handle the event instead.
+                            //
+                            // We use the primary pointer for the hit-test on DOWN
+                            // actions. Physical pixel coordinates are converted to
+                            // logical pixels to match PlatformViewBounds.
+                            let hits_platform_view = {
+                                let registry = crate::platform_view::PlatformViewRegistry::global();
+                                if registry.active_view_count() > 0 {
+                                    let primary = motion_event.pointer_at_index(
+                                        match action {
+                                            MotionAction::PointerDown | MotionAction::PointerUp => {
+                                                motion_event.pointer_index()
+                                            }
+                                            _ => 0,
+                                        }
+                                    );
+                                    let scale = win.scale_factor();
+                                    let logical_x = primary.x() / scale;
+                                    let logical_y = primary.y() / scale;
+                                    registry.hit_test(logical_x, logical_y)
+                                } else {
+                                    false
+                                }
+                            };
+
+                            if hits_platform_view {
+                                log::debug!(
+                                    "process_input_events: touch hits platform view, skipping GPUI dispatch",
+                                );
+                                // Return Unhandled so android-activity can pass
+                                // the event back to the Java view hierarchy where
+                                // the platform view's FrameLayout lives.
+                                return android_activity::InputStatus::Unhandled;
+                            }
+
                             for i in 0..pointer_count {
                                 let pointer = motion_event.pointer_at_index(i);
 
@@ -522,6 +570,7 @@ pub fn run_event_loop(app: &AndroidApp) {
         if let Some(platform) = PLATFORM.get() {
             if platform.should_quit() {
                 log::info!("run_event_loop: platform requested quit");
+                dispose_all_platform_views();
                 break;
             }
             platform.tick();
@@ -672,6 +721,8 @@ pub fn run_event_loop(app: &AndroidApp) {
                     win.set_active(false);
                 }
             }
+            // Pause platform views
+            pause_platform_views();
         }
 
         // 6. Resume / foreground
@@ -683,6 +734,8 @@ pub fn run_event_loop(app: &AndroidApp) {
                     win.set_active(true);
                 }
             }
+            // Resume platform views
+            resume_platform_views();
         }
 
         // Track active/focused state.
@@ -720,6 +773,8 @@ pub fn run_event_loop(app: &AndroidApp) {
                     }
 
                     INIT_WINDOW_DONE.store(true, Ordering::Relaxed);
+                    NATIVE_INITIALIZED.store(true, Ordering::Release);
+                    log::info!("NATIVE_INITIALIZED = true");
 
                     // Render first frame immediately.
                     platform.flush_main_thread_tasks();
@@ -751,6 +806,54 @@ pub fn run_event_loop(app: &AndroidApp) {
     }
 
     log::info!("run_event_loop: exiting main loop");
+}
+
+/// Pause all platform views when the app goes to background.
+fn pause_platform_views() {
+    let _ = with_env(|env| {
+        if let Ok(helper_class) = find_app_class(env, "dev.gpui.mobile.GpuiPlatformView") {
+            let _ = env.call_static_method(
+                &helper_class,
+                jni::jni_str!("pauseAll"),
+                jni::jni_sig!("()V"),
+                &[],
+            );
+            let _ = env.exception_clear();
+        }
+        Ok(())
+    });
+}
+
+/// Resume all platform views when the app returns to foreground.
+fn resume_platform_views() {
+    let _ = with_env(|env| {
+        if let Ok(helper_class) = find_app_class(env, "dev.gpui.mobile.GpuiPlatformView") {
+            let _ = env.call_static_method(
+                &helper_class,
+                jni::jni_str!("resumeAll"),
+                jni::jni_sig!("()V"),
+                &[],
+            );
+            let _ = env.exception_clear();
+        }
+        Ok(())
+    });
+}
+
+/// Dispose all platform views during app shutdown.
+fn dispose_all_platform_views() {
+    let _ = with_env(|env| {
+        if let Ok(helper_class) = find_app_class(env, "dev.gpui.mobile.GpuiPlatformView") {
+            let _ = env.call_static_method(
+                &helper_class,
+                jni::jni_str!("disposeAll"),
+                jni::jni_sig!("()V"),
+                &[],
+            );
+            let _ = env.exception_clear();
+        }
+        Ok(())
+    });
 }
 
 /// Handle a single `MainEvent` from `android-activity`.
@@ -1128,6 +1231,25 @@ pub fn hide_keyboard_android() {
 }
 
 // ── tests ─────────────────────────────────────────────────────────────────────
+
+// ── JNI export for GpuiActivity splash screen ────────────────────────────────
+
+/// Called from `GpuiActivity.nativeIsInitialized()` to check whether the
+/// native library has finished initializing (first frame rendered).
+///
+/// The AndroidX SplashScreen API calls this via `setKeepOnScreenCondition`
+/// to hold the splash visible until GPUI is ready.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn Java_dev_gpui_mobile_GpuiActivity_nativeIsInitialized(
+    _env: *mut std::ffi::c_void,
+    _class: *mut std::ffi::c_void,
+) -> u8 {
+    if NATIVE_INITIALIZED.load(Ordering::Acquire) {
+        1 // JNI_TRUE
+    } else {
+        0 // JNI_FALSE
+    }
+}
 
 #[cfg(test)]
 mod tests {

@@ -1,4 +1,4 @@
-use super::{VideoInfo, VideoPlayer};
+use super::VideoInfo;
 use objc::runtime::Object;
 use objc::{class, msg_send, sel, sel_impl};
 use std::collections::HashMap;
@@ -15,8 +15,6 @@ struct PlayerEntry {
     player: *mut Object,
     /// Whether looping is enabled.
     looping: bool,
-    /// The AVPlayerLayer added to the key window (if visible).
-    layer: *mut Object,
 }
 
 // AVPlayer pointers are safe to send across threads when properly retained.
@@ -38,7 +36,8 @@ fn with_player<T>(
     })
 }
 
-pub fn create() -> Result<VideoPlayer, String> {
+/// Create a new AVPlayer and return its ID.
+pub fn create_player() -> Result<u32, String> {
     unsafe {
         let player: *mut Object = msg_send![class!(AVPlayer), alloc];
         let player: *mut Object = msg_send![player, init];
@@ -53,13 +52,19 @@ pub fn create() -> Result<VideoPlayer, String> {
                 PlayerEntry {
                     player,
                     looping: false,
-                    layer: std::ptr::null_mut(),
                 },
             );
         });
 
-        Ok(VideoPlayer { id })
+        Ok(id)
     }
+}
+
+/// Get the raw AVPlayer pointer for a given player ID.
+///
+/// Used by the platform view system to create AVPlayerLayer.
+pub fn get_player_ptr(id: u32) -> Option<*mut Object> {
+    with_players(|map| map.get(&id).map(|entry| entry.player))
 }
 
 pub fn set_url(id: u32, url: &str) -> Result<VideoInfo, String> {
@@ -197,80 +202,10 @@ pub fn is_playing(id: u32) -> Result<bool, String> {
     })
 }
 
-pub fn show_surface(id: u32, x: f32, y: f32, width: f32, height: f32) -> Result<(), String> {
-    with_player(id, |entry| {
-        unsafe {
-            // Remove existing layer if any
-            if !entry.layer.is_null() {
-                let _: () = msg_send![entry.layer, removeFromSuperlayer];
-                let _: () = msg_send![entry.layer, release];
-                entry.layer = std::ptr::null_mut();
-            }
-
-            // Create AVPlayerLayer
-            let layer: *mut Object =
-                msg_send![class!(AVPlayerLayer), playerLayerWithPlayer: entry.player];
-            if layer.is_null() {
-                return Err("Failed to create AVPlayerLayer".into());
-            }
-            let _: () = msg_send![layer, retain];
-
-            // Set frame
-            let frame = CGRect {
-                origin: CGPoint {
-                    x: x as f64,
-                    y: y as f64,
-                },
-                size: CGSize {
-                    width: width as f64,
-                    height: height as f64,
-                },
-            };
-            let _: () = msg_send![layer, setFrame: frame];
-
-            // Set video gravity to aspect-fit
-            let gravity = make_nsstring("AVLayerVideoGravityResizeAspect");
-            let _: () = msg_send![layer, setVideoGravity: gravity];
-            let _: () = msg_send![gravity, release];
-
-            // Add to key window's layer
-            let app: *mut Object = msg_send![class!(UIApplication), sharedApplication];
-            let key_window: *mut Object = msg_send![app, keyWindow];
-            if key_window.is_null() {
-                let _: () = msg_send![layer, release];
-                return Err("No key window".into());
-            }
-            let window_layer: *mut Object = msg_send![key_window, layer];
-            let _: () = msg_send![window_layer, addSublayer: layer];
-
-            entry.layer = layer;
-        }
-        Ok(())
-    })
-}
-
-pub fn hide_surface(id: u32) -> Result<(), String> {
-    with_player(id, |entry| {
-        unsafe {
-            if !entry.layer.is_null() {
-                let _: () = msg_send![entry.layer, removeFromSuperlayer];
-                let _: () = msg_send![entry.layer, release];
-                entry.layer = std::ptr::null_mut();
-            }
-        }
-        Ok(())
-    })
-}
-
 pub fn dispose(id: u32) -> Result<(), String> {
     let entry = with_players(|map| map.remove(&id));
     if let Some(entry) = entry {
         unsafe {
-            // Remove layer if showing
-            if !entry.layer.is_null() {
-                let _: () = msg_send![entry.layer, removeFromSuperlayer];
-                let _: () = msg_send![entry.layer, release];
-            }
             let _: () = msg_send![entry.player, pause];
             let _: () = msg_send![entry.player, release];
         }
@@ -290,28 +225,12 @@ struct CMTime {
     epoch: i64,
 }
 
-/// CGPoint layout.
-#[repr(C)]
-#[derive(Debug, Clone, Copy)]
-struct CGPoint {
-    x: f64,
-    y: f64,
-}
-
 /// CGSize layout.
 #[repr(C)]
 #[derive(Debug, Clone, Copy)]
 struct CGSize {
     width: f64,
     height: f64,
-}
-
-/// CGRect layout.
-#[repr(C)]
-#[derive(Debug, Clone, Copy)]
-struct CGRect {
-    origin: CGPoint,
-    size: CGSize,
 }
 
 /// CMTime flag indicating a valid time.

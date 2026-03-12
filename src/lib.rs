@@ -74,6 +74,8 @@ pub use gpui;
 pub mod components;
 pub mod momentum;
 pub mod packages;
+pub mod platform_view;
+pub mod target_platform;
 
 // ── System chrome (status bar / navigation bar) styling ──────────────────────
 
@@ -333,6 +335,8 @@ pub use ios::{current_platform, IosPlatform};
 
 #[cfg(target_os = "android")]
 pub use android::{current_platform, AndroidPlatform};
+
+pub use target_platform::{TargetPlatform, target_platform, DEFAULT_PLATFORM};
 
 // ── fallback for non-mobile host builds (e.g. documentation / CI) ────────────
 

@@ -4,12 +4,19 @@
 //! - Android: MediaPlayer via JNI
 //! - iOS: AVPlayer via Objective-C
 //!
+//! Uses the platform view system for native surface embedding.
+//!
 //! Feature-gated behind `video_player`.
 
 #[cfg(target_os = "android")]
 mod android;
 #[cfg(target_os = "ios")]
 mod ios;
+
+use crate::platform_view::{
+    PlatformViewBounds, PlatformViewHandle, PlatformViewParams, PlatformViewRegistry,
+};
+use std::sync::Arc;
 
 /// Video player state.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -34,27 +41,73 @@ pub struct VideoInfo {
 ///
 /// Each `VideoPlayer` owns a platform-specific media player identified by an
 /// integer ID. Resources are released automatically on [`Drop`].
-#[derive(Debug)]
-#[allow(dead_code)]
+///
+/// The video surface is embedded via the platform view system. Call
+/// [`show_surface`] to create the native view, or use [`platform_view_handle`]
+/// to embed it in a GPUI element via `platform_view_element()`.
 pub struct VideoPlayer {
     id: u32,
+    /// Platform view handle for the video surface (set when surface is showing).
+    surface_handle: Option<Arc<PlatformViewHandle>>,
+}
+
+impl std::fmt::Debug for VideoPlayer {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("VideoPlayer")
+            .field("id", &self.id)
+            .field("has_surface", &self.surface_handle.is_some())
+            .finish()
+    }
+}
+
+/// Register the "video_player" platform view factory.
+///
+/// Called lazily on first use. Subsequent calls are no-ops.
+fn ensure_factory_registered() {
+    let registry = PlatformViewRegistry::global();
+    if !registry.has_factory("video_player") {
+        #[cfg(target_os = "android")]
+        {
+            use crate::android::platform_view::AndroidPlatformViewFactory;
+            registry.register(
+                "video_player",
+                Box::new(AndroidPlatformViewFactory::new("video_player")),
+            );
+        }
+        #[cfg(target_os = "ios")]
+        {
+            use crate::ios::platform_view::IosPlatformViewFactory;
+            registry.register(
+                "video_player",
+                Box::new(IosPlatformViewFactory::new("video_player")),
+            );
+        }
+    }
+}
+
+/// Get the raw AVPlayer pointer for a given player ID (iOS only).
+///
+/// Used by `IosPlatformView` to create an `AVPlayerLayer` during
+/// platform view construction.
+#[cfg(target_os = "ios")]
+pub fn ios_get_player(id: u32) -> Option<*mut objc::runtime::Object> {
+    ios::get_player_ptr(id)
 }
 
 impl VideoPlayer {
     /// Create a new video player.
     pub fn new() -> Result<Self, String> {
         #[cfg(target_os = "ios")]
-        {
-            ios::create()
-        }
+        let id = ios::create_player()?;
         #[cfg(target_os = "android")]
-        {
-            android::create()
-        }
+        let id = android::create_player()?;
         #[cfg(not(any(target_os = "ios", target_os = "android")))]
-        {
-            Err("VideoPlayer is not supported on this platform".into())
-        }
+        let id: u32 = return Err("VideoPlayer is not supported on this platform".into());
+
+        Ok(VideoPlayer {
+            id,
+            surface_handle: None,
+        })
     }
 
     /// Set video source from a URL.
@@ -257,47 +310,61 @@ impl VideoPlayer {
 
     /// Show the native video surface at the given position and size (in logical pixels).
     ///
-    /// On iOS this adds an AVPlayerLayer as a sublayer of the key window.
-    /// On Android this adds a TextureView overlay positioned via FrameLayout params.
-    /// The surface is placed above the GPUI Metal/Vulkan layer so the video is visible.
-    /// Call [`hide_surface`] to remove it.
-    pub fn show_surface(&self, x: f32, y: f32, width: f32, height: f32) -> Result<(), String> {
-        #[cfg(target_os = "ios")]
-        {
-            ios::show_surface(self.id, x, y, width, height)
-        }
-        #[cfg(target_os = "android")]
-        {
-            android::show_surface(self.id, x, y, width, height)
-        }
-        #[cfg(not(any(target_os = "ios", target_os = "android")))]
-        {
-            let _ = (x, y, width, height);
-            Err("not supported".into())
-        }
+    /// Creates a platform view of type "video_player" via the platform view
+    /// registry. The native view (TextureView on Android, AVPlayerLayer-backed
+    /// UIView on iOS) is managed by the platform view system.
+    ///
+    /// Use [`platform_view_handle`] to get an `Arc<PlatformViewHandle>` for
+    /// embedding in a GPUI element via `platform_view_element()`.
+    pub fn show_surface(&mut self, x: f32, y: f32, width: f32, height: f32) -> Result<(), String> {
+        // Hide existing surface if any
+        self.hide_surface()?;
+
+        ensure_factory_registered();
+
+        let mut creation_params = std::collections::HashMap::new();
+        creation_params.insert("player_id".to_string(), self.id.to_string());
+
+        let params = PlatformViewParams {
+            bounds: PlatformViewBounds {
+                x,
+                y,
+                width,
+                height,
+            },
+            creation_params,
+        };
+
+        let handle = PlatformViewRegistry::global().create_view("video_player", params)?;
+        self.surface_handle = Some(Arc::new(handle));
+        Ok(())
     }
 
     /// Hide (remove) the native video surface.
-    pub fn hide_surface(&self) -> Result<(), String> {
-        #[cfg(target_os = "ios")]
-        {
-            ios::hide_surface(self.id)
+    pub fn hide_surface(&mut self) -> Result<(), String> {
+        if let Some(handle) = self.surface_handle.take() {
+            handle.dispose();
         }
-        #[cfg(target_os = "android")]
-        {
-            android::hide_surface(self.id)
-        }
-        #[cfg(not(any(target_os = "ios", target_os = "android")))]
-        {
-            Ok(())
-        }
+        Ok(())
+    }
+
+    /// Get the platform view handle for the video surface.
+    ///
+    /// Returns `None` if `show_surface()` has not been called.
+    /// Pass this to `platform_view_element()` to embed the video
+    /// in the GPUI render tree.
+    pub fn platform_view_handle(&self) -> Option<Arc<PlatformViewHandle>> {
+        self.surface_handle.clone()
     }
 
     /// Release player resources.
     ///
     /// Called automatically on [`Drop`], but can be invoked early to free
     /// resources sooner.
-    pub fn dispose(&self) -> Result<(), String> {
+    pub fn dispose(&mut self) -> Result<(), String> {
+        // Dispose platform view first
+        self.hide_surface()?;
+
         #[cfg(target_os = "ios")]
         {
             ios::dispose(self.id)

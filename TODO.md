@@ -16,3 +16,5 @@ https://raw.githubusercontent.com/zed-industries/zed/refs/heads/main/crates/gpui
 https://raw.githubusercontent.com/zed-industries/zed/refs/heads/main/crates/gpui/examples/image_loading.rs
 
 Update the text inputs with all the functionality from here https://raw.githubusercontent.com/zed-industries/zed/refs/heads/main/crates/gpui/examples/input.rs
+
+- [ ] **Texture-based composition mode (future)** — offscreen rendering for better perf

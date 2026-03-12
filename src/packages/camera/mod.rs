@@ -14,6 +14,11 @@ mod android;
 #[cfg(target_os = "ios")]
 mod ios;
 
+use crate::platform_view::{
+    PlatformViewBounds, PlatformViewHandle, PlatformViewParams, PlatformViewRegistry,
+};
+use std::sync::Arc;
+
 /// Direction the camera lens faces.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CameraLensDirection {
@@ -78,6 +83,49 @@ pub struct CameraDescription {
 pub struct CameraHandle {
     /// Platform-specific session identifier.
     pub id: usize,
+    /// Platform view handle for camera preview (set when preview is active).
+    preview_handle: Option<Arc<PlatformViewHandle>>,
+}
+
+impl CameraHandle {
+    /// Create a `CameraHandle` from a raw platform session id.
+    pub fn from_id(id: usize) -> Self {
+        Self {
+            id,
+            preview_handle: None,
+        }
+    }
+}
+
+/// Register the "camera_preview" platform view factory.
+fn ensure_factory_registered() {
+    let registry = PlatformViewRegistry::global();
+    if !registry.has_factory("camera_preview") {
+        #[cfg(target_os = "android")]
+        {
+            use crate::android::platform_view::AndroidPlatformViewFactory;
+            registry.register(
+                "camera_preview",
+                Box::new(AndroidPlatformViewFactory::new("camera_preview")),
+            );
+        }
+        #[cfg(target_os = "ios")]
+        {
+            use crate::ios::platform_view::IosPlatformViewFactory;
+            registry.register(
+                "camera_preview",
+                Box::new(IosPlatformViewFactory::new("camera_preview")),
+            );
+        }
+    }
+}
+
+/// Get the raw AVCaptureSession pointer for a given session ID (iOS only).
+///
+/// Used by `IosPlatformView` to create `AVCaptureVideoPreviewLayer`.
+#[cfg(target_os = "ios")]
+pub fn ios_get_session(id: usize) -> Option<*mut objc::runtime::Object> {
+    ios::get_session_ptr(id)
 }
 
 /// Result of a photo capture.
@@ -125,10 +173,12 @@ pub fn create_camera(
     #[cfg(target_os = "ios")]
     {
         ios::create_camera(camera, resolution, enable_audio)
+            .map(|id| CameraHandle { id, preview_handle: None })
     }
     #[cfg(target_os = "android")]
     {
         android::create_camera(camera, resolution, enable_audio)
+            .map(|id| CameraHandle { id, preview_handle: None })
     }
     #[cfg(not(any(target_os = "ios", target_os = "android")))]
     {
@@ -137,38 +187,47 @@ pub fn create_camera(
     }
 }
 
-/// Start the camera preview (adds a native preview layer to the window).
-pub fn start_preview(handle: &CameraHandle) -> Result<(), String> {
-    #[cfg(target_os = "ios")]
-    {
-        ios::start_preview(handle)
-    }
-    #[cfg(target_os = "android")]
-    {
-        android::start_preview(handle)
-    }
-    #[cfg(not(any(target_os = "ios", target_os = "android")))]
-    {
-        let _ = handle;
-        Err("camera is only available on iOS and Android".into())
-    }
+/// Start the camera preview (creates a native preview platform view).
+pub fn start_preview(handle: &mut CameraHandle) -> Result<(), String> {
+    // Dispose existing preview if any
+    stop_preview(handle)?;
+
+    ensure_factory_registered();
+
+    let mut creation_params = std::collections::HashMap::new();
+    creation_params.insert("session_id".to_string(), handle.id.to_string());
+
+    let params = PlatformViewParams {
+        bounds: PlatformViewBounds::default(),
+        creation_params,
+    };
+
+    let pv_handle = PlatformViewRegistry::global().create_view("camera_preview", params)?;
+    handle.preview_handle = Some(Arc::new(pv_handle));
+    Ok(())
 }
 
 /// Stop the camera preview.
-pub fn stop_preview(handle: &CameraHandle) -> Result<(), String> {
+pub fn stop_preview(handle: &mut CameraHandle) -> Result<(), String> {
+    if let Some(pv) = handle.preview_handle.take() {
+        pv.dispose();
+    }
     #[cfg(target_os = "ios")]
     {
-        ios::stop_preview(handle)
+        ios::stop_preview_session(handle)?;
     }
     #[cfg(target_os = "android")]
     {
-        android::stop_preview(handle)
+        android::stop_preview_session(handle)?;
     }
-    #[cfg(not(any(target_os = "ios", target_os = "android")))]
-    {
-        let _ = handle;
-        Err("camera is only available on iOS and Android".into())
-    }
+    Ok(())
+}
+
+/// Get the platform view handle for the camera preview.
+///
+/// Returns `None` if the preview is not active.
+pub fn preview_platform_view_handle(handle: &CameraHandle) -> Option<Arc<PlatformViewHandle>> {
+    handle.preview_handle.clone()
 }
 
 /// Capture a still photo, save to temp dir, return path + dimensions.
@@ -342,7 +401,11 @@ pub fn set_camera(handle: &CameraHandle, camera: &CameraDescription) -> Result<(
 }
 
 /// Release camera resources.
-pub fn dispose(handle: CameraHandle) -> Result<(), String> {
+pub fn dispose(mut handle: CameraHandle) -> Result<(), String> {
+    // Dispose preview platform view first
+    if let Some(pv) = handle.preview_handle.take() {
+        pv.dispose();
+    }
     #[cfg(target_os = "ios")]
     {
         ios::dispose(handle)

@@ -1,4 +1,7 @@
-use super::*;
+use super::{
+    CameraDescription, CameraHandle, CameraLensDirection, CapturedImage, ExposureMode, FlashMode,
+    FocusMode, RecordedVideo, ResolutionPreset,
+};
 use crate::android::jni::{self as jni_helpers, JniExt};
 use jni::objects::{JObject, JValue};
 
@@ -64,7 +67,7 @@ pub fn create_camera(
     camera: &CameraDescription,
     resolution: ResolutionPreset,
     enable_audio: bool,
-) -> Result<CameraHandle, String> {
+) -> Result<usize, String> {
     jni_helpers::with_env(|env| {
         let activity = jni_helpers::activity(env)?;
         let cls = jni_helpers::find_app_class(env, HELPER_CLASS)?;
@@ -95,37 +98,13 @@ pub fn create_camera(
             return Err("Failed to create camera session".into());
         }
 
-        Ok(CameraHandle {
-            id: handle_id as usize,
-        })
+        Ok(handle_id as usize)
     })
 }
 
-pub fn start_preview(handle: &CameraHandle) -> Result<(), String> {
+pub fn stop_preview_session(handle: &CameraHandle) -> Result<(), String> {
     jni_helpers::with_env(|env| {
         let cls = jni_helpers::find_app_class(env, HELPER_CLASS)?;
-        let activity = jni_helpers::activity(env)?;
-
-        env.call_static_method(
-            &cls,
-            jni::jni_str!("startPreview"),
-            jni::jni_sig!("(Landroid/app/Activity;I)V"),
-            &[JValue::Object(&activity), JValue::Int(handle.id as i32)],
-        )
-        .map_err(|e| {
-            let _ = env.exception_clear();
-            e.to_string()
-        })?;
-
-        std::mem::forget(activity);
-        Ok(())
-    })
-}
-
-pub fn stop_preview(handle: &CameraHandle) -> Result<(), String> {
-    jni_helpers::with_env(|env| {
-        let cls = jni_helpers::find_app_class(env, HELPER_CLASS)?;
-
         env.call_static_method(
             &cls,
             jni::jni_str!("stopPreview"),
@@ -136,7 +115,6 @@ pub fn stop_preview(handle: &CameraHandle) -> Result<(), String> {
             let _ = env.exception_clear();
             e.to_string()
         })?;
-
         Ok(())
     })
 }

@@ -522,7 +522,7 @@ _android_install_and_launch() {
 
     info "Launching app..."
     adb shell am start \
-        -n "dev.gpui.mobile.example/android.app.NativeActivity" \
+        -n "dev.gpui.mobile.example/dev.gpui.mobile.GpuiActivity" \
         -a android.intent.action.MAIN \
         -c android.intent.category.LAUNCHER \
         2>&1

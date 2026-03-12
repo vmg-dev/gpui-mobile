@@ -449,6 +449,73 @@ public final class GpuiVideoPlayer {
         }
     }
 
+    /**
+     * Create a TextureView configured for video playback.
+     *
+     * <p>The TextureView is wired to the MediaPlayer via a SurfaceTextureListener.
+     * The view is NOT added to the hierarchy — the caller (GpuiPlatformView) handles that.</p>
+     *
+     * @param activity The current Activity.
+     * @param id       Player ID.
+     * @return A configured TextureView, or an empty FrameLayout if the player is not found.
+     */
+    public static android.view.View createVideoSurface(Activity activity, int id) {
+        MediaPlayer mp;
+        synchronized (sLock) {
+            mp = sPlayers.get(id);
+        }
+        if (mp == null) {
+            android.util.Log.w(TAG, "createVideoSurface: player " + id + " not found");
+            return new FrameLayout(activity);
+        }
+
+        final MediaPlayer fmp = mp;
+        TextureView tv = new TextureView(activity);
+
+        tv.setSurfaceTextureListener(new TextureView.SurfaceTextureListener() {
+            @Override
+            public void onSurfaceTextureAvailable(SurfaceTexture surfaceTexture, int w, int h) {
+                Surface surface = new Surface(surfaceTexture);
+                try {
+                    fmp.setSurface(surface);
+                } catch (Exception e) {
+                    android.util.Log.e(TAG, "createVideoSurface: setSurface failed", e);
+                }
+            }
+
+            @Override
+            public void onSurfaceTextureSizeChanged(SurfaceTexture surface, int w, int h) {}
+
+            @Override
+            public boolean onSurfaceTextureDestroyed(SurfaceTexture surface) {
+                try {
+                    fmp.setSurface(null);
+                } catch (Exception ignored) {}
+                return true;
+            }
+
+            @Override
+            public void onSurfaceTextureUpdated(SurfaceTexture surface) {}
+        });
+
+        // If texture is already available (reuse case)
+        if (tv.isAvailable()) {
+            Surface surface = new Surface(tv.getSurfaceTexture());
+            try {
+                fmp.setSurface(surface);
+            } catch (Exception e) {
+                android.util.Log.e(TAG, "createVideoSurface: setSurface (immediate) failed", e);
+            }
+        }
+
+        // Track this surface
+        synchronized (sLock) {
+            sSurfaces.put(id, tv);
+        }
+
+        return tv;
+    }
+
     // Prevent instantiation.
     private GpuiVideoPlayer() {}
 }

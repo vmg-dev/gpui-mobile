@@ -672,5 +672,64 @@ public final class GpuiCamera {
         }
     }
 
+    /**
+     * Create a TextureView for camera preview.
+     *
+     * <p>The TextureView is wired to the CameraSession. When the surface
+     * becomes available, a capture session is created automatically.
+     * The view is NOT added to the hierarchy — the caller (GpuiPlatformView) handles that.</p>
+     *
+     * @param activity  The current Activity.
+     * @param handleId  Camera session handle ID.
+     * @return A configured TextureView, or an empty FrameLayout if the session is not found.
+     */
+    public static android.view.View createPreviewSurface(Activity activity, int handleId) {
+        CameraSession session;
+        synchronized (sSessions) {
+            session = sSessions.get(handleId);
+        }
+        if (session == null || session.device == null) {
+            android.util.Log.w(TAG, "createPreviewSurface: session " + handleId + " not found");
+            return new android.widget.FrameLayout(activity);
+        }
+
+        final CameraSession s = session;
+        android.view.TextureView tv = new android.view.TextureView(activity);
+        s.textureView = tv;
+
+        tv.setSurfaceTextureListener(new android.view.TextureView.SurfaceTextureListener() {
+            @Override
+            public void onSurfaceTextureAvailable(android.graphics.SurfaceTexture surface, int width, int height) {
+                surface.setDefaultBufferSize(s.previewSize.getWidth(), s.previewSize.getHeight());
+                s.previewSurface = new android.view.Surface(surface);
+                createCaptureSession(s);
+            }
+
+            @Override
+            public void onSurfaceTextureSizeChanged(android.graphics.SurfaceTexture surface, int w, int h) {}
+
+            @Override
+            public boolean onSurfaceTextureDestroyed(android.graphics.SurfaceTexture surface) {
+                return true;
+            }
+
+            @Override
+            public void onSurfaceTextureUpdated(android.graphics.SurfaceTexture surface) {}
+        });
+
+        // If texture is already available
+        if (tv.isAvailable()) {
+            android.graphics.SurfaceTexture st = tv.getSurfaceTexture();
+            st.setDefaultBufferSize(s.previewSize.getWidth(), s.previewSize.getHeight());
+            s.previewSurface = new android.view.Surface(st);
+            createCaptureSession(s);
+        }
+
+        // Start the session running
+        // (capture session creation is async via the SurfaceTextureListener)
+
+        return tv;
+    }
+
     private GpuiCamera() {}
 }

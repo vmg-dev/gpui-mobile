@@ -668,11 +668,9 @@ pub fn render(router: &Router, cx: &mut gpui::Context<Router>) -> impl IntoEleme
                                     let mut state = s.borrow_mut();
                                     if state.camera_handle.is_some() {
                                         // Toggle preview
-                                        let handle = gpui_mobile::packages::camera::CameraHandle {
-                                            id: state.camera_handle.unwrap(),
-                                        };
+                                        let mut handle = gpui_mobile::packages::camera::CameraHandle::from_id(state.camera_handle.unwrap());
                                         if state.camera_previewing {
-                                            match gpui_mobile::packages::camera::stop_preview(&handle) {
+                                            match gpui_mobile::packages::camera::stop_preview(&mut handle) {
                                                 Ok(()) => {
                                                     state.camera_previewing = false;
                                                     state.camera_status = Some("Preview stopped".into());
@@ -680,7 +678,7 @@ pub fn render(router: &Router, cx: &mut gpui::Context<Router>) -> impl IntoEleme
                                                 Err(e) => state.camera_status = Some(format!("Error: {e}")),
                                             }
                                         } else {
-                                            match gpui_mobile::packages::camera::start_preview(&handle) {
+                                            match gpui_mobile::packages::camera::start_preview(&mut handle) {
                                                 Ok(()) => {
                                                     state.camera_previewing = true;
                                                     state.camera_status = Some("Preview active".into());
@@ -726,7 +724,7 @@ pub fn render(router: &Router, cx: &mut gpui::Context<Router>) -> impl IntoEleme
                             PACKAGES_STATE.with(|s| {
                                 let mut state = s.borrow_mut();
                                 if let Some(id) = state.camera_handle {
-                                    let handle = gpui_mobile::packages::camera::CameraHandle { id };
+                                    let handle = gpui_mobile::packages::camera::CameraHandle::from_id(id);
                                     match gpui_mobile::packages::camera::available_cameras() {
                                         Ok(cams) => {
                                             // Toggle between front and back
@@ -758,7 +756,7 @@ pub fn render(router: &Router, cx: &mut gpui::Context<Router>) -> impl IntoEleme
                             PACKAGES_STATE.with(|s| {
                                 let mut state = s.borrow_mut();
                                 if let Some(id) = state.camera_handle.take() {
-                                    let handle = gpui_mobile::packages::camera::CameraHandle { id };
+                                    let handle = gpui_mobile::packages::camera::CameraHandle::from_id(id);
                                     let _ = gpui_mobile::packages::camera::dispose(handle);
                                     state.camera_previewing = false;
                                     state.camera_recording = false;
@@ -783,7 +781,7 @@ pub fn render(router: &Router, cx: &mut gpui::Context<Router>) -> impl IntoEleme
                             PACKAGES_STATE.with(|s| {
                                 let mut state = s.borrow_mut();
                                 if let Some(id) = state.camera_handle {
-                                    let handle = gpui_mobile::packages::camera::CameraHandle { id };
+                                    let handle = gpui_mobile::packages::camera::CameraHandle::from_id(id);
                                     match gpui_mobile::packages::camera::take_picture(&handle) {
                                         Ok(img) => {
                                             state.camera_status = Some(format!(
@@ -806,7 +804,7 @@ pub fn render(router: &Router, cx: &mut gpui::Context<Router>) -> impl IntoEleme
                                 PACKAGES_STATE.with(|s| {
                                     let mut state = s.borrow_mut();
                                     if let Some(id) = state.camera_handle {
-                                        let handle = gpui_mobile::packages::camera::CameraHandle { id };
+                                        let handle = gpui_mobile::packages::camera::CameraHandle::from_id(id);
                                         if state.camera_recording {
                                             match gpui_mobile::packages::camera::stop_video_recording(&handle) {
                                                 Ok(vid) => {
@@ -845,7 +843,7 @@ pub fn render(router: &Router, cx: &mut gpui::Context<Router>) -> impl IntoEleme
                         PACKAGES_STATE.with(|s| {
                             let mut state = s.borrow_mut();
                             if let Some(id) = state.camera_handle {
-                                let handle = gpui_mobile::packages::camera::CameraHandle { id };
+                                let handle = gpui_mobile::packages::camera::CameraHandle::from_id(id);
                                 let _ = gpui_mobile::packages::camera::set_flash_mode(
                                     &handle, gpui_mobile::packages::camera::FlashMode::Off,
                                 );
@@ -859,7 +857,7 @@ pub fn render(router: &Router, cx: &mut gpui::Context<Router>) -> impl IntoEleme
                         PACKAGES_STATE.with(|s| {
                             let mut state = s.borrow_mut();
                             if let Some(id) = state.camera_handle {
-                                let handle = gpui_mobile::packages::camera::CameraHandle { id };
+                                let handle = gpui_mobile::packages::camera::CameraHandle::from_id(id);
                                 let _ = gpui_mobile::packages::camera::set_flash_mode(
                                     &handle, gpui_mobile::packages::camera::FlashMode::Auto,
                                 );
@@ -873,7 +871,7 @@ pub fn render(router: &Router, cx: &mut gpui::Context<Router>) -> impl IntoEleme
                         PACKAGES_STATE.with(|s| {
                             let mut state = s.borrow_mut();
                             if let Some(id) = state.camera_handle {
-                                let handle = gpui_mobile::packages::camera::CameraHandle { id };
+                                let handle = gpui_mobile::packages::camera::CameraHandle::from_id(id);
                                 let _ = gpui_mobile::packages::camera::set_flash_mode(
                                     &handle, gpui_mobile::packages::camera::FlashMode::Torch,
                                 );

@@ -1,4 +1,7 @@
-use super::*;
+use super::{
+    CameraDescription, CameraHandle, CameraLensDirection, CapturedImage, ExposureMode, FlashMode,
+    FocusMode, RecordedVideo, ResolutionPreset,
+};
 use objc::declare::ClassDecl;
 use objc::runtime::{Class, Object, Sel, BOOL, YES};
 use objc::{class, msg_send, sel, sel_impl};
@@ -44,6 +47,12 @@ fn next_id() -> usize {
         NEXT_ID += 1;
         id
     }
+}
+
+/// Get the raw AVCaptureSession pointer for a given session ID.
+pub fn get_session_ptr(id: usize) -> Option<*mut Object> {
+    let guard = sessions();
+    guard.as_ref().and_then(|map| map.get(&id).map(|s| s.session))
 }
 
 // ── Photo capture delegate ──────────────────────────────────────────────────
@@ -369,7 +378,7 @@ pub fn create_camera(
     camera: &CameraDescription,
     resolution: ResolutionPreset,
     enable_audio: bool,
-) -> Result<CameraHandle, String> {
+) -> Result<usize, String> {
     unsafe {
         // Find the device
         let device = find_device_by_name(&camera.name);
@@ -474,11 +483,11 @@ pub fn create_camera(
             },
         );
 
-        Ok(CameraHandle { id })
+        Ok(id)
     }
 }
 
-pub fn start_preview(handle: &CameraHandle) -> Result<(), String> {
+pub fn stop_preview_session(handle: &CameraHandle) -> Result<(), String> {
     unsafe {
         let mut guard = sessions();
         let state = guard
@@ -486,58 +495,8 @@ pub fn start_preview(handle: &CameraHandle) -> Result<(), String> {
             .unwrap()
             .get_mut(&handle.id)
             .ok_or("Invalid camera handle")?;
-
-        // Create preview layer
-        let layer: *mut Object = msg_send![class!(AVCaptureVideoPreviewLayer), alloc];
-        let layer: *mut Object = msg_send![layer, initWithSession: state.session];
-        if layer.is_null() {
-            return Err("Failed to create preview layer".into());
-        }
-
-        // Set video gravity to aspect fill
-        let gravity = nsstring("AVLayerVideoGravityResizeAspectFill");
-        let _: () = msg_send![layer, setVideoGravity: gravity];
-
-        // Get screen bounds for full-screen preview
-        let screen: *mut Object = msg_send![class!(UIScreen), mainScreen];
-        let bounds: CGRect = msg_send![screen, bounds];
-        let _: () = msg_send![layer, setFrame: bounds];
-
-        // Add to key window
-        let app: *mut Object = msg_send![class!(UIApplication), sharedApplication];
-        let key_window: *mut Object = msg_send![app, keyWindow];
-        if key_window.is_null() {
-            return Err("No key window available".into());
-        }
-        let root_layer: *mut Object = msg_send![key_window, layer];
-        let _: () = msg_send![root_layer, addSublayer: layer];
-
-        state.preview_layer = layer;
-
-        // Start the session running (on a background queue to avoid blocking)
-        let session = state.session;
-        let _: () = msg_send![session, startRunning];
-
-        Ok(())
-    }
-}
-
-pub fn stop_preview(handle: &CameraHandle) -> Result<(), String> {
-    unsafe {
-        let mut guard = sessions();
-        let state = guard
-            .as_mut()
-            .unwrap()
-            .get_mut(&handle.id)
-            .ok_or("Invalid camera handle")?;
-
         let _: () = msg_send![state.session, stopRunning];
-
-        if !state.preview_layer.is_null() {
-            let _: () = msg_send![state.preview_layer, removeFromSuperlayer];
-            state.preview_layer = std::ptr::null_mut();
-        }
-
+        // Preview layer removal is handled by the platform view system
         Ok(())
     }
 }

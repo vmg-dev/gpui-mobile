@@ -61,7 +61,7 @@ pub fn reset_state() {
         let mut st = s.borrow_mut();
         // Hide surface before dropping player
         if st.surface_visible {
-            if let Some(ref p) = st.player {
+            if let Some(ref mut p) = st.player {
                 let _ = p.hide_surface();
             }
         }
@@ -75,7 +75,7 @@ pub fn dismiss() {
     VIDEO_STATE.with(|s| {
         let mut st = s.borrow_mut();
         if st.surface_visible {
-            if let Some(ref p) = st.player {
+            if let Some(ref mut p) = st.player {
                 let _ = p.hide_surface();
             }
             st.surface_visible = false;
@@ -138,8 +138,8 @@ pub fn render(router: &Router, window: &mut gpui::Window, cx: &mut gpui::Context
         let surface_w = viewport_width - 32.0; // full width minus 2 * px_4
 
         VIDEO_STATE.with(|s| {
-            let st = s.borrow();
-            if let Some(ref p) = st.player {
+            let mut st = s.borrow_mut();
+            if let Some(ref mut p) = st.player {
                 let _ = p.show_surface(surface_x, surface_y, surface_w, VIDEO_AREA_HEIGHT);
             }
         });
@@ -180,7 +180,7 @@ pub fn render(router: &Router, window: &mut gpui::Window, cx: &mut gpui::Context
                                     st.surface_visible = true;
                                 } else {
                                     // Toggle off
-                                    if let Some(ref p) = st.player {
+                                    if let Some(ref mut p) = st.player {
                                         let _ = p.hide_surface();
                                     }
                                     st.surface_visible = false;

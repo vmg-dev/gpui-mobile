@@ -14,10 +14,18 @@ use super::{Router, BLUE, GREEN, LIGHT_CARD_BG, LIGHT_TEXT, RED, SURFACE0, SURFA
 const APP_BAR_HEIGHT: f32 = 56.0;
 
 /// Thread-local state for the in-app WebView, decoupled from Router.
-#[derive(Default)]
 pub struct WebViewState {
     pub url: String,
-    pub handle: Option<usize>,
+    pub handle: Option<gpui_mobile::packages::webview::WebViewHandle>,
+}
+
+impl Default for WebViewState {
+    fn default() -> Self {
+        Self {
+            url: String::new(),
+            handle: None,
+        }
+    }
 }
 
 thread_local! {
@@ -30,8 +38,7 @@ thread_local! {
 pub fn dismiss_webview() -> bool {
     WEBVIEW_STATE.with(|s| {
         let mut state = s.borrow_mut();
-        if let Some(ptr) = state.handle.take() {
-            let handle = gpui_mobile::packages::webview::WebViewHandle { ptr };
+        if let Some(handle) = state.handle.take() {
             let _ = gpui_mobile::packages::webview::dismiss(handle);
             true
         } else {
@@ -74,10 +81,8 @@ pub fn render(router: &Router, cx: &mut gpui::Context<Router>) -> impl IntoEleme
                         cx.listener(|_this, _, _, cx| {
                             WEBVIEW_STATE.with(|s| {
                                 let state = s.borrow();
-                                if let Some(ptr) = state.handle {
-                                    let h = gpui_mobile::packages::webview::WebViewHandle { ptr };
-                                    let _ = gpui_mobile::packages::webview::go_back(&h);
-                                    std::mem::forget(h);
+                                if let Some(ref h) = state.handle {
+                                    let _ = gpui_mobile::packages::webview::go_back(h);
                                 }
                             });
                             cx.notify();
@@ -90,10 +95,8 @@ pub fn render(router: &Router, cx: &mut gpui::Context<Router>) -> impl IntoEleme
                         cx.listener(|_this, _, _, cx| {
                             WEBVIEW_STATE.with(|s| {
                                 let state = s.borrow();
-                                if let Some(ptr) = state.handle {
-                                    let h = gpui_mobile::packages::webview::WebViewHandle { ptr };
-                                    let _ = gpui_mobile::packages::webview::reload(&h);
-                                    std::mem::forget(h);
+                                if let Some(ref h) = state.handle {
+                                    let _ = gpui_mobile::packages::webview::reload(h);
                                 }
                             });
                             cx.notify();
@@ -122,8 +125,7 @@ pub fn render(router: &Router, cx: &mut gpui::Context<Router>) -> impl IntoEleme
                         cx.listener(|_this, _, _, cx| {
                             WEBVIEW_STATE.with(|s| {
                                 let mut state = s.borrow_mut();
-                                if let Some(ptr) = state.handle.take() {
-                                    let h = gpui_mobile::packages::webview::WebViewHandle { ptr };
+                                if let Some(h) = state.handle.take() {
                                     let _ = gpui_mobile::packages::webview::dismiss(h);
                                 }
                             });
@@ -193,9 +195,8 @@ pub fn render(router: &Router, cx: &mut gpui::Context<Router>) -> impl IntoEleme
                                     WEBVIEW_STATE.with(|s| {
                                         let mut state = s.borrow_mut();
                                         state.url = "about:blank".into();
-                                        state.handle = Some(handle.ptr);
+                                        state.handle = Some(handle);
                                     });
-                                    std::mem::forget(handle);
                                 }
                                 Err(e) => log::error!("WebView HTML error: {e}"),
                             }
@@ -270,8 +271,7 @@ fn open_url_btn(
                 // Dismiss existing
                 WEBVIEW_STATE.with(|s| {
                     let mut state = s.borrow_mut();
-                    if let Some(ptr) = state.handle.take() {
-                        let h = gpui_mobile::packages::webview::WebViewHandle { ptr };
+                    if let Some(h) = state.handle.take() {
                         let _ = gpui_mobile::packages::webview::dismiss(h);
                     }
                 });
@@ -282,9 +282,8 @@ fn open_url_btn(
                         WEBVIEW_STATE.with(|s| {
                             let mut state = s.borrow_mut();
                             state.url = url.into();
-                            state.handle = Some(handle.ptr);
+                            state.handle = Some(handle);
                         });
-                        std::mem::forget(handle);
                         log::info!("WebView: loaded {url}");
                     }
                     Err(e) => log::error!("WebView URL error: {e}"),

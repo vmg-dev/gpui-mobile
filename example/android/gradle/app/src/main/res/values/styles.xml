@@ -54,4 +54,15 @@
         <item name="android:windowContentTransitions">false</item>
     </style>
 
+    <!-- Splash theme using AndroidX SplashScreen compat library.
+         On API < 31 the library emulates the system splash screen.
+         On API 31+ the system splash screen API is used natively.
+         GpuiActivity calls installSplashScreen() and holds the splash
+         visible until NATIVE_INITIALIZED is true via JNI. -->
+    <style name="GpuiSplashTheme" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/gpui_surface</item>
+        <item name="windowSplashScreenAnimatedIcon">@mipmap/ic_launcher</item>
+        <item name="postSplashScreenTheme">@style/GpuiTheme</item>
+    </style>
+
 </resources>

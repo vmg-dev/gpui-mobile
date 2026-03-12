@@ -30,6 +30,7 @@
 pub mod common;
 pub mod glass;
 pub mod material;
+pub mod platform_view_element;
 pub mod shared;
 
 // ── Convenience re-exports ───────────────────────────────────────────────────

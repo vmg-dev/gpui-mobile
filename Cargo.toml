@@ -17,7 +17,7 @@ default = ["url_launcher", "shared_preferences", "path_provider",
            "battery", "share", "sensors", "webview", "file_selector", "image_picker", "camera",
            "permission_handler", "notifications", "location", "audio", "video_player",
            "clipboard", "local_auth", "in_app_review", "contacts", "maps_launcher",
-           "calendar", "deeplink", "microphone"]
+           "calendar", "deeplink", "microphone", "maps"]
 url_launcher = []
 shared_preferences = []
 path_provider = []
@@ -43,6 +43,7 @@ local_auth = []
 in_app_review = []
 contacts = []
 maps_launcher = []
+maps = []
 calendar = []
 deeplink = []
 microphone = []
