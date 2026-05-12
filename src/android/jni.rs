@@ -402,6 +402,261 @@ fn touch_point_from_motion_event(
     }
 }
 
+macro_rules! motion_int {
+    ($env:expr, $motion_event:expr, $method:literal) => {
+        $env.call_method(
+            $motion_event,
+            jni::jni_str!($method),
+            jni::jni_sig!("()I"),
+            &[],
+        )
+        .and_then(|value| value.i())
+        .map_err(|e| e.to_string())
+    };
+}
+
+macro_rules! motion_long {
+    ($env:expr, $motion_event:expr, $method:literal) => {
+        $env.call_method(
+            $motion_event,
+            jni::jni_str!($method),
+            jni::jni_sig!("()J"),
+            &[],
+        )
+        .and_then(|value| value.j())
+        .map_err(|e| e.to_string())
+    };
+}
+
+macro_rules! motion_int_at {
+    ($env:expr, $motion_event:expr, $method:literal, $pointer_index:expr) => {
+        $env.call_method(
+            $motion_event,
+            jni::jni_str!($method),
+            jni::jni_sig!("(I)I"),
+            &[JValue::Int($pointer_index as i32)],
+        )
+        .and_then(|value| value.i())
+        .map_err(|e| e.to_string())
+    };
+}
+
+macro_rules! motion_float_at {
+    ($env:expr, $motion_event:expr, $method:literal, $pointer_index:expr) => {
+        $env.call_method(
+            $motion_event,
+            jni::jni_str!($method),
+            jni::jni_sig!("(I)F"),
+            &[JValue::Int($pointer_index as i32)],
+        )
+        .and_then(|value| value.f())
+        .map_err(|e| e.to_string())
+    };
+}
+
+fn motion_axis_at(
+    env: &mut jni::Env<'_>,
+    motion_event: &JObject<'_>,
+    axis: i32,
+    pointer_index: usize,
+) -> Result<f32, String> {
+    env.call_method(
+        motion_event,
+        jni::jni_str!("getAxisValue"),
+        jni::jni_sig!("(II)F"),
+        &[JValue::Int(axis), JValue::Int(pointer_index as i32)],
+    )
+    .and_then(|value| value.f())
+    .map_err(|e| e.to_string())
+}
+
+fn touch_point_from_java_motion_event(
+    env: &mut jni::Env<'_>,
+    motion_event: &JObject<'_>,
+    pointer_index: usize,
+    action: u32,
+    platform_data: u64,
+) -> Result<crate::android::TouchPoint, String> {
+    const AXIS_VSCROLL: i32 = 9;
+    const AXIS_HSCROLL: i32 = 10;
+    const AXIS_DISTANCE: i32 = 24;
+    const AXIS_TILT: i32 = 25;
+    const TOOL_TYPE_STYLUS: u32 = 2;
+    const TOOL_TYPE_ERASER: u32 = 4;
+
+    let raw_id = motion_int_at!(env, motion_event, "getPointerId", pointer_index)?;
+    let tool_type = motion_int_at!(env, motion_event, "getToolType", pointer_index)? as u32;
+    let is_scroll = action == crate::android::ANDROID_ACTION_SCROLL;
+    let is_stylus = matches!(tool_type, TOOL_TYPE_STYLUS | TOOL_TYPE_ERASER);
+    let scroll_delta_x = if is_scroll {
+        crate::android::ANDROID_DEFAULT_HORIZONTAL_SCROLL_FACTOR
+            * -motion_axis_at(env, motion_event, AXIS_HSCROLL, pointer_index)?
+    } else {
+        0.0
+    };
+    let scroll_delta_y = if is_scroll {
+        crate::android::ANDROID_DEFAULT_VERTICAL_SCROLL_FACTOR
+            * -motion_axis_at(env, motion_event, AXIS_VSCROLL, pointer_index)?
+    } else {
+        0.0
+    };
+
+    Ok(crate::android::TouchPoint {
+        id: unique_pointer_id(raw_id, tool_type),
+        raw_id,
+        device_id: motion_int!(env, motion_event, "getDeviceId")?,
+        source: motion_int!(env, motion_event, "getSource")? as u32,
+        tool_type,
+        x: motion_float_at!(env, motion_event, "getX", pointer_index)?,
+        y: motion_float_at!(env, motion_event, "getY", pointer_index)?,
+        action,
+        button_state: motion_int!(env, motion_event, "getButtonState")? as u32,
+        meta_state: motion_int!(env, motion_event, "getMetaState")? as u32,
+        event_time_nanos: motion_long!(env, motion_event, "getEventTime")? * 1_000_000,
+        platform_data,
+        pressure: motion_float_at!(env, motion_event, "getPressure", pointer_index)?,
+        size: motion_float_at!(env, motion_event, "getSize", pointer_index)?,
+        touch_major: motion_float_at!(env, motion_event, "getTouchMajor", pointer_index)?,
+        touch_minor: motion_float_at!(env, motion_event, "getTouchMinor", pointer_index)?,
+        tool_major: motion_float_at!(env, motion_event, "getToolMajor", pointer_index)?,
+        tool_minor: motion_float_at!(env, motion_event, "getToolMinor", pointer_index)?,
+        orientation: motion_float_at!(env, motion_event, "getOrientation", pointer_index)?,
+        tilt: if is_stylus {
+            motion_axis_at(env, motion_event, AXIS_TILT, pointer_index)?
+        } else {
+            0.0
+        },
+        distance: if is_stylus {
+            motion_axis_at(env, motion_event, AXIS_DISTANCE, pointer_index)?
+        } else {
+            0.0
+        },
+        scroll_delta_x,
+        scroll_delta_y,
+    })
+}
+
+fn dispatch_java_motion_event(
+    env: &mut jni::Env<'_>,
+    motion_event: &JObject<'_>,
+) -> Result<bool, String> {
+    const ACTION_DOWN: i32 = 0;
+    const ACTION_UP: i32 = 1;
+    const ACTION_MOVE: i32 = 2;
+    const ACTION_CANCEL: i32 = 3;
+    const ACTION_POINTER_DOWN: i32 = 5;
+    const ACTION_POINTER_UP: i32 = 6;
+    const ACTION_HOVER_MOVE: i32 = 7;
+    const ACTION_SCROLL: i32 = 8;
+    const SOURCE_CLASS_POINTER: i32 = 0x0000_0002;
+    const TOOL_TYPE_FINGER: i32 = 1;
+
+    let platform = match PLATFORM.get() {
+        Some(platform) => platform,
+        None => return Ok(false),
+    };
+    let win = match platform.primary_window() {
+        Some(win) => win,
+        None => return Ok(false),
+    };
+
+    let action = motion_int!(env, motion_event, "getActionMasked")?;
+    let action_index = motion_int!(env, motion_event, "getActionIndex")? as usize;
+    let pointer_count = motion_int!(env, motion_event, "getPointerCount")? as usize;
+
+    let hit_pointer_index = match action {
+        ACTION_POINTER_DOWN | ACTION_POINTER_UP => action_index,
+        _ => 0,
+    };
+    let hits_platform_view = {
+        let registry = crate::platform_view::PlatformViewRegistry::global();
+        if registry.active_view_count() > 0 && hit_pointer_index < pointer_count {
+            let scale = win.scale_factor();
+            let logical_x = motion_float_at!(env, motion_event, "getX", hit_pointer_index)? / scale;
+            let logical_y = motion_float_at!(env, motion_event, "getY", hit_pointer_index)? / scale;
+            registry.hit_test(logical_x, logical_y)
+        } else {
+            false
+        }
+    };
+    if hits_platform_view {
+        return Ok(false);
+    }
+
+    let dispatch_pointer = |env: &mut jni::Env<'_>,
+                            pointer_index: usize,
+                            action: u32,
+                            platform_data: u64| {
+        let touch = touch_point_from_java_motion_event(
+            env,
+            motion_event,
+            pointer_index,
+            action,
+            platform_data,
+        )?;
+
+        log::debug!(
+                "nativeOnTouchEvent: dispatching touch id={} raw_id={} tool={} x={:.0} y={:.0} action={} flags={:#x}",
+                touch.id,
+                touch.raw_id,
+                touch.tool_type,
+                touch.x,
+                touch.y,
+                touch.action,
+                touch.platform_data,
+            );
+
+        win.handle_touch(touch);
+        Ok::<(), String>(())
+    };
+
+    match action {
+        ACTION_DOWN | ACTION_POINTER_DOWN => {
+            dispatch_pointer(env, action_index, crate::android::ANDROID_ACTION_DOWN, 0)?;
+        }
+        ACTION_UP | ACTION_POINTER_UP => {
+            for i in 0..pointer_count {
+                let tool_type = motion_int_at!(env, motion_event, "getToolType", i)?;
+                if i != action_index && tool_type == TOOL_TYPE_FINGER {
+                    dispatch_pointer(
+                        env,
+                        i,
+                        crate::android::ANDROID_ACTION_MOVE,
+                        crate::android::ANDROID_POINTER_DATA_FLAG_BATCHED,
+                    )?;
+                }
+            }
+            dispatch_pointer(env, action_index, crate::android::ANDROID_ACTION_UP, 0)?;
+        }
+        ACTION_MOVE => {
+            let platform_data = multiple_pointer_platform_data(pointer_count);
+            for i in 0..pointer_count {
+                dispatch_pointer(env, i, crate::android::ANDROID_ACTION_MOVE, platform_data)?;
+            }
+        }
+        ACTION_CANCEL => {
+            for i in 0..pointer_count {
+                dispatch_pointer(env, i, crate::android::ANDROID_ACTION_CANCEL, 0)?;
+            }
+        }
+        ACTION_HOVER_MOVE | ACTION_SCROLL => {
+            let source = motion_int!(env, motion_event, "getSource")?;
+            if source & SOURCE_CLASS_POINTER == 0 {
+                return Ok(false);
+            }
+            let gpui_action = if action == ACTION_SCROLL {
+                crate::android::ANDROID_ACTION_SCROLL
+            } else {
+                crate::android::ANDROID_ACTION_HOVER_MOVE
+            };
+            dispatch_pointer(env, action_index, gpui_action, 0)?;
+        }
+        _ => return Ok(false),
+    }
+
+    Ok(true)
+}
+
 // ── night mode query via NDK Configuration ───────────────────────────────────
 
 /// Query the current night mode using the NDK Configuration API.
@@ -1373,6 +1628,37 @@ pub unsafe extern "C" fn Java_dev_gpui_mobile_GpuiActivity_nativeIsInitialized(
         1 // JNI_TRUE
     } else {
         0 // JNI_FALSE
+    }
+}
+
+/// JNI bridge: receive the Activity's Java `MotionEvent` stream.
+///
+/// This mirrors Flutter's Android path, where `FlutterView.onTouchEvent`
+/// forwards Java `MotionEvent`s to `AndroidTouchProcessor` instead of relying
+/// on `NativeActivity`'s native input queue as the primary source.
+///
+/// # Safety
+/// Must only be called from the JVM on a valid JNI thread with a valid
+/// `android.view.MotionEvent` jobject.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn Java_dev_gpui_mobile_GpuiActivity_nativeOnTouchEvent(
+    _env: *mut std::ffi::c_void,
+    _class: *mut std::ffi::c_void,
+    event: *mut std::ffi::c_void,
+) -> u8 {
+    let event_raw = event as jni::sys::jobject;
+    let handled = with_env(|env| {
+        let event_obj = unsafe { JObject::from_raw(env, event_raw) };
+        dispatch_java_motion_event(env, &event_obj)
+    });
+
+    match handled {
+        Ok(true) => 1,
+        Ok(false) => 0,
+        Err(error) => {
+            log::warn!("nativeOnTouchEvent failed: {error}");
+            0
+        }
     }
 }
 

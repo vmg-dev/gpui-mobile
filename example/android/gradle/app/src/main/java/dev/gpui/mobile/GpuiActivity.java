@@ -9,6 +9,7 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.KeyEvent;
+import android.view.MotionEvent;
 
 import androidx.core.splashscreen.SplashScreen;
 
@@ -124,6 +125,23 @@ public class GpuiActivity extends NativeActivity {
         }
     }
 
+    /**
+     * Forward Java MotionEvents through the native Flutter-style touch
+     * processor before NativeActivity's fallback input queue sees them.
+     */
+    @Override
+    public boolean dispatchTouchEvent(MotionEvent event) {
+        try {
+            if (nativeOnTouchEvent(event)) {
+                return true;
+            }
+        } catch (UnsatisfiedLinkError e) {
+            // Native library is not ready yet; fall back to NativeActivity.
+        }
+
+        return super.dispatchTouchEvent(event);
+    }
+
     @Override
     protected void onDestroy() {
         // Release media session when activity is destroyed.
@@ -165,4 +183,9 @@ public class GpuiActivity extends NativeActivity {
      * JNI bridge to notify Rust of an incoming deeplink URL.
      */
     private static native void nativeOnDeepLink(String url);
+
+    /**
+     * JNI bridge to forward Java MotionEvents to Rust.
+     */
+    private static native boolean nativeOnTouchEvent(MotionEvent event);
 }
