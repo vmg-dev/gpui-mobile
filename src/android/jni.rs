@@ -327,9 +327,80 @@ pub fn shared_platform() -> Option<SharedPlatform> {
 // ── input event types ─────────────────────────────────────────────────────────
 
 /// Motion event action constants from the NDK.
-const AMOTION_EVENT_ACTION_DOWN: u32 = 0;
-const AMOTION_EVENT_ACTION_UP: u32 = 1;
-const AMOTION_EVENT_ACTION_MOVE: u32 = 2;
+const TOOL_TYPE_BITS: i32 = 3;
+const TOOL_TYPE_MASK: i32 = (1 << TOOL_TYPE_BITS) - 1;
+
+#[inline]
+fn unique_pointer_id(raw_pointer_id: i32, tool_type: u32) -> i32 {
+    (raw_pointer_id << TOOL_TYPE_BITS) | ((tool_type as i32) & TOOL_TYPE_MASK)
+}
+
+#[inline]
+fn multiple_pointer_platform_data(pointer_count: usize) -> u64 {
+    crate::android::ANDROID_POINTER_DATA_FLAG_MULTIPLE
+        | ((pointer_count as u64)
+            << crate::android::ANDROID_POINTER_DATA_MULTIPLE_POINTER_COUNT_SHIFT)
+}
+
+fn touch_point_from_motion_event(
+    motion_event: &android_activity::input::MotionEvent<'_>,
+    pointer_index: usize,
+    action: u32,
+    platform_data: u64,
+) -> crate::android::TouchPoint {
+    use android_activity::input::{Axis, ToolType};
+
+    let pointer = motion_event.pointer_at_index(pointer_index);
+    let raw_id = pointer.pointer_id();
+    let tool_type = u32::from(pointer.tool_type());
+    let is_scroll = action == crate::android::ANDROID_ACTION_SCROLL;
+    let is_stylus = matches!(pointer.tool_type(), ToolType::Stylus | ToolType::Eraser);
+    let scroll_delta_x = if is_scroll {
+        crate::android::ANDROID_DEFAULT_HORIZONTAL_SCROLL_FACTOR
+            * -pointer.axis_value(Axis::Hscroll)
+    } else {
+        0.0
+    };
+    let scroll_delta_y = if is_scroll {
+        crate::android::ANDROID_DEFAULT_VERTICAL_SCROLL_FACTOR * -pointer.axis_value(Axis::Vscroll)
+    } else {
+        0.0
+    };
+
+    crate::android::TouchPoint {
+        id: unique_pointer_id(raw_id, tool_type),
+        raw_id,
+        device_id: motion_event.device_id(),
+        source: u32::from(motion_event.source()),
+        tool_type,
+        x: pointer.x(),
+        y: pointer.y(),
+        action,
+        button_state: motion_event.button_state().0,
+        meta_state: motion_event.meta_state().0,
+        event_time_nanos: motion_event.event_time(),
+        platform_data,
+        pressure: pointer.pressure(),
+        size: pointer.size(),
+        touch_major: pointer.touch_major(),
+        touch_minor: pointer.touch_minor(),
+        tool_major: pointer.tool_major(),
+        tool_minor: pointer.tool_minor(),
+        orientation: pointer.orientation(),
+        tilt: if is_stylus {
+            pointer.axis_value(Axis::Tilt)
+        } else {
+            0.0
+        },
+        distance: if is_stylus {
+            pointer.axis_value(Axis::Distance)
+        } else {
+            0.0
+        },
+        scroll_delta_x,
+        scroll_delta_y,
+    }
+}
 
 // ── night mode query via NDK Configuration ───────────────────────────────────
 
@@ -374,7 +445,7 @@ fn process_input_events(app: &AndroidApp) {
         Ok(mut iter) => {
             loop {
                 let read_input = iter.next(|event| {
-                    use android_activity::input::{InputEvent, MotionAction};
+                    use android_activity::input::{InputEvent, MotionAction, ToolType};
 
                     match event {
                         InputEvent::MotionEvent(motion_event) => {
@@ -428,44 +499,98 @@ fn process_input_events(app: &AndroidApp) {
                                 return android_activity::InputStatus::Unhandled;
                             }
 
-                            for i in 0..pointer_count {
-                                let pointer = motion_event.pointer_at_index(i);
-
-                                let touch_action = match action {
-                                    MotionAction::Down => AMOTION_EVENT_ACTION_DOWN,
-                                    MotionAction::PointerDown => {
-                                        // For pointer down, only dispatch the specific pointer
-                                        if i != motion_event.pointer_index() {
-                                            continue;
-                                        }
-                                        AMOTION_EVENT_ACTION_DOWN
-                                    }
-                                    MotionAction::Up => AMOTION_EVENT_ACTION_UP,
-                                    MotionAction::PointerUp => {
-                                        // For pointer up, only dispatch the specific pointer
-                                        if i != motion_event.pointer_index() {
-                                            continue;
-                                        }
-                                        AMOTION_EVENT_ACTION_UP
-                                    }
-                                    MotionAction::Move => AMOTION_EVENT_ACTION_MOVE,
-                                    MotionAction::Cancel => AMOTION_EVENT_ACTION_UP,
-                                    _ => continue,
-                                };
-
-                                let touch = crate::android::TouchPoint {
-                                    id: pointer.pointer_id(),
-                                    x: pointer.x(),
-                                    y: pointer.y(),
-                                    action: touch_action,
-                                };
+                            let dispatch_pointer = |pointer_index: usize,
+                                                    action: u32,
+                                                    platform_data: u64| {
+                                let touch = touch_point_from_motion_event(
+                                    &motion_event,
+                                    pointer_index,
+                                    action,
+                                    platform_data,
+                                );
 
                                 log::debug!(
-                                    "process_input_events: dispatching touch id={} x={:.0} y={:.0} action={}",
-                                    touch.id, touch.x, touch.y, touch.action,
+                                    "process_input_events: dispatching touch id={} raw_id={} tool={} x={:.0} y={:.0} action={} flags={:#x}",
+                                    touch.id,
+                                    touch.raw_id,
+                                    touch.tool_type,
+                                    touch.x,
+                                    touch.y,
+                                    touch.action,
+                                    touch.platform_data,
                                 );
 
                                 win.handle_touch(touch);
+                            };
+
+                            match action {
+                                MotionAction::Down | MotionAction::PointerDown => {
+                                    dispatch_pointer(
+                                        motion_event.pointer_index(),
+                                        crate::android::ANDROID_ACTION_DOWN,
+                                        0,
+                                    );
+                                }
+                                MotionAction::Up | MotionAction::PointerUp => {
+                                    let action_index = motion_event.pointer_index();
+
+                                    // Flutter preserves position updates for other active
+                                    // fingers before sending the pointer-up record, flagged
+                                    // as batched data from the same Android event.
+                                    for i in 0..pointer_count {
+                                        if i != action_index
+                                            && motion_event.pointer_at_index(i).tool_type()
+                                                == ToolType::Finger
+                                        {
+                                            dispatch_pointer(
+                                                i,
+                                                crate::android::ANDROID_ACTION_MOVE,
+                                                crate::android::ANDROID_POINTER_DATA_FLAG_BATCHED,
+                                            );
+                                        }
+                                    }
+
+                                    dispatch_pointer(
+                                        action_index,
+                                        crate::android::ANDROID_ACTION_UP,
+                                        0,
+                                    );
+                                }
+                                MotionAction::Move => {
+                                    let platform_data =
+                                        multiple_pointer_platform_data(pointer_count);
+                                    for i in 0..pointer_count {
+                                        dispatch_pointer(
+                                            i,
+                                            crate::android::ANDROID_ACTION_MOVE,
+                                            platform_data,
+                                        );
+                                    }
+                                }
+                                MotionAction::Cancel => {
+                                    for i in 0..pointer_count {
+                                        dispatch_pointer(
+                                            i,
+                                            crate::android::ANDROID_ACTION_CANCEL,
+                                            0,
+                                        );
+                                    }
+                                }
+                                MotionAction::HoverMove | MotionAction::Scroll => {
+                                    if !motion_event.source().is_pointer_class() {
+                                        return android_activity::InputStatus::Unhandled;
+                                    }
+
+                                    let action = if action == MotionAction::Scroll {
+                                        crate::android::ANDROID_ACTION_SCROLL
+                                    } else {
+                                        crate::android::ANDROID_ACTION_HOVER_MOVE
+                                    };
+                                    dispatch_pointer(motion_event.pointer_index(), action, 0);
+                                }
+                                _ => {
+                                    return android_activity::InputStatus::Unhandled;
+                                }
                             }
 
                             android_activity::InputStatus::Handled

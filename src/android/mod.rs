@@ -222,14 +222,59 @@ pub struct AndroidKeyEvent {
     pub unicode_char: u32,
 }
 
-/// A single touch point from `AInputEvent`.
-#[derive(Clone, Debug)]
+/// Android action constants used by [`TouchPoint::action`].
+pub const ANDROID_ACTION_DOWN: u32 = 0;
+pub const ANDROID_ACTION_UP: u32 = 1;
+pub const ANDROID_ACTION_MOVE: u32 = 2;
+pub const ANDROID_ACTION_CANCEL: u32 = 3;
+pub const ANDROID_ACTION_HOVER_MOVE: u32 = 7;
+pub const ANDROID_ACTION_SCROLL: u32 = 8;
+
+/// Android pointer-data flags mirrored from Flutter's Android touch processor.
+pub const ANDROID_POINTER_DATA_FLAG_BATCHED: u64 = 1;
+pub const ANDROID_POINTER_DATA_FLAG_MULTIPLE: u64 = 2;
+pub const ANDROID_POINTER_DATA_MULTIPLE_POINTER_COUNT_SHIFT: u32 = 8;
+
+/// Default Android scroll factors used by Flutter when view configuration is unavailable.
+pub const ANDROID_DEFAULT_HORIZONTAL_SCROLL_FACTOR: f32 = 48.0;
+pub const ANDROID_DEFAULT_VERTICAL_SCROLL_FACTOR: f32 = 48.0;
+
+/// A single Android pointer update from `AInputEvent`.
+#[derive(Clone, Debug, Default)]
 pub struct TouchPoint {
+    /// Flutter-style stable id: `(android_pointer_id << 3) | tool_type`.
     pub id: i32,
+    /// Raw Android pointer id before tool-type disambiguation.
+    pub raw_id: i32,
+    /// Android device id that produced the event.
+    pub device_id: i32,
+    /// Android input source (`InputDevice.SOURCE_*`).
+    pub source: u32,
+    /// Android tool type (`MotionEvent.TOOL_TYPE_*`).
+    pub tool_type: u32,
     pub x: f32,
     pub y: f32,
     /// `AMOTION_EVENT_ACTION_*` action masked to a single pointer.
     pub action: u32,
+    /// Android button state, normalized later into GPUI button fields.
+    pub button_state: u32,
+    /// Android modifier state.
+    pub meta_state: u32,
+    /// Event time in the Android `System.nanoTime()` time base.
+    pub event_time_nanos: i64,
+    /// Android platform data flags used for batched/multiple pointer updates.
+    pub platform_data: u64,
+    pub pressure: f32,
+    pub size: f32,
+    pub touch_major: f32,
+    pub touch_minor: f32,
+    pub tool_major: f32,
+    pub tool_minor: f32,
+    pub orientation: f32,
+    pub tilt: f32,
+    pub distance: f32,
+    pub scroll_delta_x: f32,
+    pub scroll_delta_y: f32,
 }
 
 // ── shared logging helper ─────────────────────────────────────────────────────

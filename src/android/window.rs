@@ -34,7 +34,7 @@
 
 use anyhow::{Context as _, Result};
 use futures::channel::oneshot;
-use gpui::wgpu::{wgpu, GpuContext, WgpuRenderer, WgpuSurfaceConfig};
+use gpui::wgpu::{GpuContext, WgpuRenderer, WgpuSurfaceConfig};
 use gpui::{
     self, AtlasKey, AtlasTile, Capslock, DispatchEventResult, GpuSpecs, Modifiers, PlatformAtlas,
     PlatformDisplay, PlatformInputHandler, PlatformWindow, PromptButton, PromptLevel,
@@ -1465,18 +1465,99 @@ impl PlatformWindow for AndroidPlatformWindow {
             /// is promoted from a potential tap to a scroll gesture.
             const SCROLL_SLOP: f32 = 8.0;
 
+            fn pointer_kind_from_tool_type(tool_type: u32) -> gpui::PointerDeviceKind {
+                match tool_type {
+                    1 => gpui::PointerDeviceKind::Touch,
+                    2 => gpui::PointerDeviceKind::Stylus,
+                    3 => gpui::PointerDeviceKind::Mouse,
+                    4 => gpui::PointerDeviceKind::InvertedStylus,
+                    _ => gpui::PointerDeviceKind::Unknown,
+                }
+            }
+
+            fn is_direct_touch(kind: gpui::PointerDeviceKind) -> bool {
+                matches!(kind, gpui::PointerDeviceKind::Touch)
+            }
+
+            fn is_indirect_pointer(kind: gpui::PointerDeviceKind) -> bool {
+                matches!(
+                    kind,
+                    gpui::PointerDeviceKind::Mouse
+                        | gpui::PointerDeviceKind::Stylus
+                        | gpui::PointerDeviceKind::InvertedStylus
+                )
+            }
+
+            fn pointer_phase_from_action(action: u32) -> Option<gpui::PointerPhase> {
+                match action {
+                    crate::android::ANDROID_ACTION_DOWN => Some(gpui::PointerPhase::Down),
+                    crate::android::ANDROID_ACTION_MOVE => Some(gpui::PointerPhase::Move),
+                    crate::android::ANDROID_ACTION_UP => Some(gpui::PointerPhase::Up),
+                    crate::android::ANDROID_ACTION_CANCEL => Some(gpui::PointerPhase::Cancel),
+                    crate::android::ANDROID_ACTION_HOVER_MOVE
+                    | crate::android::ANDROID_ACTION_SCROLL => Some(gpui::PointerPhase::Hover),
+                    _ => None,
+                }
+            }
+
+            fn gpui_buttons_for_pointer(
+                touch: &TouchPoint,
+                kind: gpui::PointerDeviceKind,
+                phase: gpui::PointerPhase,
+            ) -> u32 {
+                match kind {
+                    gpui::PointerDeviceKind::Mouse => touch.button_state & 0x1f,
+                    gpui::PointerDeviceKind::Stylus | gpui::PointerDeviceKind::InvertedStylus => {
+                        (touch.button_state >> 4) & 0x0f
+                    }
+                    gpui::PointerDeviceKind::Touch => {
+                        if matches!(phase, gpui::PointerPhase::Down | gpui::PointerPhase::Move) {
+                            gpui::PRIMARY_BUTTON
+                        } else {
+                            0
+                        }
+                    }
+                    gpui::PointerDeviceKind::Trackpad | gpui::PointerDeviceKind::Unknown => 0,
+                }
+            }
+
+            fn mouse_button_from_buttons(buttons: u32) -> gpui::MouseButton {
+                if buttons & gpui::SECONDARY_BUTTON != 0 {
+                    gpui::MouseButton::Right
+                } else if buttons & gpui::TERTIARY_BUTTON != 0 {
+                    gpui::MouseButton::Middle
+                } else if buttons & gpui::BACK_BUTTON != 0 {
+                    gpui::MouseButton::Navigate(gpui::NavigationDirection::Back)
+                } else if buttons & gpui::FORWARD_BUTTON != 0 {
+                    gpui::MouseButton::Navigate(gpui::NavigationDirection::Forward)
+                } else {
+                    gpui::MouseButton::Left
+                }
+            }
+
             /// Tracks the current touch gesture.
             #[derive(Clone, Copy, Debug)]
             enum TouchState {
                 /// No active touch.
                 Idle,
                 /// Finger is down but hasn't moved beyond the slop threshold.
-                Pending { start_x: f32, start_y: f32 },
+                Pending {
+                    pointer_id: i32,
+                    start_x: f32,
+                    start_y: f32,
+                    suppress_compat: bool,
+                },
                 /// Finger has moved beyond the threshold — we are scrolling.
-                Scrolling { prev_x: f32, prev_y: f32 },
+                Scrolling {
+                    pointer_id: i32,
+                    prev_x: f32,
+                    prev_y: f32,
+                    suppress_compat: bool,
+                },
             }
 
             let state = Mutex::new(TouchState::Idle);
+            let pointer_positions = Mutex::new(HashMap::<i32, gpui::Point<gpui::Pixels>>::new());
 
             self.window.on_touch(move |touch| {
                 // Android delivers touch coordinates in physical (device)
@@ -1484,13 +1565,171 @@ impl PlatformWindow for AndroidPlatformWindow {
                 // pixels.  Divide by scale factor.
                 let logical_x = touch.x / scale_factor;
                 let logical_y = touch.y / scale_factor;
+                let position = gpui::point(gpui::px(logical_x), gpui::px(logical_y));
                 let modifiers = gpui::Modifiers::default();
+                let kind = pointer_kind_from_tool_type(touch.tool_type);
+                let Some(pointer_phase) = pointer_phase_from_action(touch.action) else {
+                    return;
+                };
+                let pointer = gpui::PointerId::new(touch.id as u64);
+                let buttons = gpui_buttons_for_pointer(&touch, kind, pointer_phase);
+                let pointer_down = matches!(
+                    pointer_phase,
+                    gpui::PointerPhase::Down | gpui::PointerPhase::Move
+                ) && (is_direct_touch(kind) || buttons != 0);
+                let delta = {
+                    let positions = pointer_positions.lock();
+                    positions.get(&touch.id).copied().map_or(
+                        gpui::point(gpui::px(0.0), gpui::px(0.0)),
+                        |previous| {
+                            let previous_x: f32 = previous.x.into();
+                            let previous_y: f32 = previous.y.into();
+                            gpui::point(
+                                gpui::px(logical_x - previous_x),
+                                gpui::px(logical_y - previous_y),
+                            )
+                        },
+                    )
+                };
+
+                let mut pointer_event =
+                    gpui::PointerEvent::new(pointer, kind, pointer_phase, position, modifiers);
+                pointer_event.time_stamp = if touch.event_time_nanos > 0 {
+                    std::time::Duration::from_nanos(touch.event_time_nanos as u64)
+                } else {
+                    std::time::Duration::default()
+                };
+                pointer_event.device = gpui::PointerDeviceId::new(touch.device_id.max(0) as u64);
+                pointer_event.delta = delta;
+                pointer_event.buttons = buttons;
+                pointer_event.down = pointer_down;
+                pointer_event.pressure = if pointer_down { touch.pressure } else { 0.0 };
+                pointer_event.pressure_max = 1.0;
+                pointer_event.distance = touch.distance / scale_factor;
+                pointer_event.size = touch.size;
+                pointer_event.radius_major = touch.tool_major / scale_factor;
+                pointer_event.radius_minor = touch.tool_minor / scale_factor;
+                pointer_event.orientation = touch.orientation;
+                pointer_event.tilt = touch.tilt;
+                pointer_event.platform_data = touch.platform_data;
+
+                let pointer_result = {
+                    let mut guard = cb.lock();
+                    guard(gpui::PlatformInput::Pointer(pointer_event))
+                };
+                let pointer_default_prevented = pointer_result.default_prevented;
+
+                {
+                    let mut positions = pointer_positions.lock();
+                    if pointer_down {
+                        positions.insert(touch.id, position);
+                    } else if matches!(
+                        pointer_phase,
+                        gpui::PointerPhase::Up
+                            | gpui::PointerPhase::Cancel
+                            | gpui::PointerPhase::Removed
+                    ) {
+                        positions.remove(&touch.id);
+                    }
+                }
+
+                if pointer_default_prevented {
+                    let mut ts = state.lock();
+                    match *ts {
+                        TouchState::Pending { pointer_id, .. }
+                        | TouchState::Scrolling { pointer_id, .. }
+                            if pointer_id == touch.id
+                                && matches!(
+                                    pointer_phase,
+                                    gpui::PointerPhase::Up | gpui::PointerPhase::Cancel
+                                ) =>
+                        {
+                            *ts = TouchState::Idle;
+                        }
+                        _ => {}
+                    }
+                    if touch.action == crate::android::ANDROID_ACTION_DOWN && is_direct_touch(kind)
+                    {
+                        *ts = TouchState::Pending {
+                            pointer_id: touch.id,
+                            start_x: logical_x,
+                            start_y: logical_y,
+                            suppress_compat: true,
+                        };
+                    }
+                    return;
+                }
+
+                if touch.action == crate::android::ANDROID_ACTION_SCROLL {
+                    let mut guard = cb.lock();
+                    let _ = guard(gpui::PlatformInput::ScrollWheel(gpui::ScrollWheelEvent {
+                        position,
+                        delta: gpui::ScrollDelta::Pixels(gpui::point(
+                            gpui::px(touch.scroll_delta_x / scale_factor),
+                            gpui::px(touch.scroll_delta_y / scale_factor),
+                        )),
+                        modifiers,
+                        touch_phase: gpui::TouchPhase::Moved,
+                    }));
+                    return;
+                }
+
+                if touch.action == crate::android::ANDROID_ACTION_HOVER_MOVE {
+                    if is_indirect_pointer(kind) {
+                        let mut guard = cb.lock();
+                        let _ = guard(gpui::PlatformInput::MouseMove(gpui::MouseMoveEvent {
+                            position,
+                            modifiers,
+                            pressed_button: None,
+                        }));
+                    }
+                    return;
+                }
+
+                if is_indirect_pointer(kind) {
+                    let button = mouse_button_from_buttons(buttons);
+                    let mut guard = cb.lock();
+                    match touch.action {
+                        crate::android::ANDROID_ACTION_DOWN => {
+                            let _ = guard(gpui::PlatformInput::MouseDown(gpui::MouseDownEvent {
+                                button,
+                                position,
+                                modifiers,
+                                click_count: 1,
+                                first_mouse: false,
+                            }));
+                        }
+                        crate::android::ANDROID_ACTION_MOVE => {
+                            let pressed_button = if buttons == 0 { None } else { Some(button) };
+                            let _ = guard(gpui::PlatformInput::MouseMove(gpui::MouseMoveEvent {
+                                position,
+                                modifiers,
+                                pressed_button,
+                            }));
+                        }
+                        crate::android::ANDROID_ACTION_UP
+                        | crate::android::ANDROID_ACTION_CANCEL => {
+                            let _ = guard(gpui::PlatformInput::MouseUp(gpui::MouseUpEvent {
+                                button,
+                                position,
+                                modifiers,
+                                click_count: 1,
+                            }));
+                        }
+                        _ => {}
+                    }
+                    return;
+                }
+
+                if !is_direct_touch(kind) {
+                    return;
+                }
 
                 let mut ts = state.lock();
 
                 match touch.action {
                     // ── ACTION_DOWN ──────────────────────────────────────
-                    0 => {
+                    crate::android::ANDROID_ACTION_DOWN => {
                         // Cancel any active momentum fling — the user
                         // touched the screen, so inertia must stop.
                         // Also flush any pending coalesced scroll.
@@ -1503,8 +1742,10 @@ impl PlatformWindow for AndroidPlatformWindow {
                             ms.has_pending_scroll = false;
                         }
                         *ts = TouchState::Pending {
+                            pointer_id: touch.id,
                             start_x: logical_x,
                             start_y: logical_y,
+                            suppress_compat: false,
                         };
                         // Do NOT emit MouseDown here — wait until we know
                         // whether this is a tap or a scroll.  Emitting
@@ -1518,7 +1759,7 @@ impl PlatformWindow for AndroidPlatformWindow {
                     }
 
                     // ── ACTION_MOVE ──────────────────────────────────────
-                    2 => {
+                    crate::android::ANDROID_ACTION_MOVE => {
                         // Instead of emitting a ScrollWheel event for every
                         // single MOVE, accumulate the delta in MomentumState.
                         // The frame callback will drain and emit one coalesced
@@ -1534,7 +1775,12 @@ impl PlatformWindow for AndroidPlatformWindow {
                         ms.velocity_tracker.record(logical_x, logical_y);
 
                         match *ts {
-                            TouchState::Pending { start_x, start_y } => {
+                            TouchState::Pending {
+                                pointer_id,
+                                start_x,
+                                start_y,
+                                suppress_compat,
+                            } if pointer_id == touch.id => {
                                 let dx = logical_x - start_x;
                                 let dy = logical_y - start_y;
                                 let distance = (dx * dx + dy * dy).sqrt();
@@ -1543,38 +1789,53 @@ impl PlatformWindow for AndroidPlatformWindow {
                                     // Promote to scrolling — accumulate the
                                     // first scroll delta from the start pos.
                                     *ts = TouchState::Scrolling {
+                                        pointer_id,
                                         prev_x: logical_x,
                                         prev_y: logical_y,
+                                        suppress_compat,
                                     };
+                                    if !suppress_compat {
+                                        ms.pending_scroll_dx += dx;
+                                        ms.pending_scroll_dy += dy;
+                                        ms.pending_scroll_pos_x = logical_x;
+                                        ms.pending_scroll_pos_y = logical_y;
+                                        // Use Started phase for the first batch.
+                                        if !ms.has_pending_scroll {
+                                            ms.pending_scroll_phase = gpui::TouchPhase::Started;
+                                        }
+                                        ms.has_pending_scroll = true;
+                                    }
+                                }
+                                // else: still within slop, stay Pending
+                            }
+                            TouchState::Scrolling {
+                                pointer_id,
+                                prev_x,
+                                prev_y,
+                                suppress_compat,
+                            } if pointer_id == touch.id => {
+                                let dx = logical_x - prev_x;
+                                let dy = logical_y - prev_y;
+                                *ts = TouchState::Scrolling {
+                                    pointer_id,
+                                    prev_x: logical_x,
+                                    prev_y: logical_y,
+                                    suppress_compat,
+                                };
+                                if !suppress_compat {
                                     ms.pending_scroll_dx += dx;
                                     ms.pending_scroll_dy += dy;
                                     ms.pending_scroll_pos_x = logical_x;
                                     ms.pending_scroll_pos_y = logical_y;
-                                    // Use Started phase for the first batch.
                                     if !ms.has_pending_scroll {
-                                        ms.pending_scroll_phase = gpui::TouchPhase::Started;
+                                        ms.pending_scroll_phase = gpui::TouchPhase::Moved;
                                     }
                                     ms.has_pending_scroll = true;
                                 }
-                                // else: still within slop, stay Pending
                             }
-                            TouchState::Scrolling { prev_x, prev_y } => {
-                                let dx = logical_x - prev_x;
-                                let dy = logical_y - prev_y;
-                                *ts = TouchState::Scrolling {
-                                    prev_x: logical_x,
-                                    prev_y: logical_y,
-                                };
-                                ms.pending_scroll_dx += dx;
-                                ms.pending_scroll_dy += dy;
-                                ms.pending_scroll_pos_x = logical_x;
-                                ms.pending_scroll_pos_y = logical_y;
-                                if !ms.has_pending_scroll {
-                                    ms.pending_scroll_phase = gpui::TouchPhase::Moved;
-                                }
-                                ms.has_pending_scroll = true;
-                            }
-                            TouchState::Idle => {
+                            TouchState::Pending { .. }
+                            | TouchState::Scrolling { .. }
+                            | TouchState::Idle => {
                                 // Spurious move without a preceding down — ignore.
                             }
                         }
@@ -1585,21 +1846,37 @@ impl PlatformWindow for AndroidPlatformWindow {
                         // Always emit MouseMove so interactive screens can
                         // track finger position (drag line in Animations,
                         // gradient control in Shaders).
-                        let position = gpui::point(gpui::px(logical_x), gpui::px(logical_y));
-                        let mut guard = cb.lock();
-                        let _ = guard(gpui::PlatformInput::MouseMove(gpui::MouseMoveEvent {
-                            position,
-                            modifiers,
-                            pressed_button: Some(gpui::MouseButton::Left),
-                        }));
+                        let suppress_compat = matches!(
+                            *ts,
+                            TouchState::Pending {
+                                pointer_id,
+                                suppress_compat: true,
+                                ..
+                            } | TouchState::Scrolling {
+                                pointer_id,
+                                suppress_compat: true,
+                                ..
+                            } if pointer_id == touch.id
+                        );
+                        if !suppress_compat {
+                            let mut guard = cb.lock();
+                            let _ = guard(gpui::PlatformInput::MouseMove(gpui::MouseMoveEvent {
+                                position,
+                                modifiers,
+                                pressed_button: Some(gpui::MouseButton::Left),
+                            }));
+                        }
                     }
 
                     // ── ACTION_UP / ACTION_CANCEL ────────────────────────
-                    1 | 3 => {
-                        let position = gpui::point(gpui::px(logical_x), gpui::px(logical_y));
-
+                    crate::android::ANDROID_ACTION_UP | crate::android::ANDROID_ACTION_CANCEL => {
                         match *ts {
-                            TouchState::Pending { start_x, start_y } => {
+                            TouchState::Pending {
+                                pointer_id,
+                                start_x,
+                                start_y,
+                                suppress_compat,
+                            } if pointer_id == touch.id => {
                                 // Finger lifted without exceeding slop →
                                 // this is a tap.  Emit MouseDown + MouseUp
                                 // together at the original down position so
@@ -1609,24 +1886,35 @@ impl PlatformWindow for AndroidPlatformWindow {
                                     ms.velocity_tracker.reset();
                                     ms.has_pending_scroll = false;
                                 }
-                                let tap_pos = gpui::point(gpui::px(start_x), gpui::px(start_y));
-                                let mut guard = cb.lock();
-                                let _ =
-                                    guard(gpui::PlatformInput::MouseDown(gpui::MouseDownEvent {
-                                        button: gpui::MouseButton::Left,
-                                        position: tap_pos,
-                                        modifiers,
-                                        click_count: 1,
-                                        first_mouse: false,
-                                    }));
-                                let _ = guard(gpui::PlatformInput::MouseUp(gpui::MouseUpEvent {
-                                    button: gpui::MouseButton::Left,
-                                    position: tap_pos,
-                                    modifiers,
-                                    click_count: 1,
-                                }));
+                                if !suppress_compat
+                                    && touch.action == crate::android::ANDROID_ACTION_UP
+                                {
+                                    let tap_pos = gpui::point(gpui::px(start_x), gpui::px(start_y));
+                                    let mut guard = cb.lock();
+                                    let _ = guard(gpui::PlatformInput::MouseDown(
+                                        gpui::MouseDownEvent {
+                                            button: gpui::MouseButton::Left,
+                                            position: tap_pos,
+                                            modifiers,
+                                            click_count: 1,
+                                            first_mouse: false,
+                                        },
+                                    ));
+                                    let _ =
+                                        guard(gpui::PlatformInput::MouseUp(gpui::MouseUpEvent {
+                                            button: gpui::MouseButton::Left,
+                                            position: tap_pos,
+                                            modifiers,
+                                            click_count: 1,
+                                        }));
+                                }
                             }
-                            TouchState::Scrolling { prev_x, prev_y } => {
+                            TouchState::Scrolling {
+                                pointer_id,
+                                prev_x,
+                                prev_y,
+                                suppress_compat,
+                            } if pointer_id == touch.id => {
                                 // End the active touch-scroll gesture.
                                 // Include the final delta in the coalesced
                                 // accumulator, then flush it immediately
@@ -1636,10 +1924,16 @@ impl PlatformWindow for AndroidPlatformWindow {
                                 let dy = logical_y - prev_y;
                                 let mut ms = momentum.lock();
 
-                                // Flush any accumulated delta + this final
-                                // move as a single Ended scroll event.
-                                let total_dx = ms.pending_scroll_dx + dx;
-                                let total_dy = ms.pending_scroll_dy + dy;
+                                let total_dx = if suppress_compat {
+                                    0.0
+                                } else {
+                                    ms.pending_scroll_dx + dx
+                                };
+                                let total_dy = if suppress_compat {
+                                    0.0
+                                } else {
+                                    ms.pending_scroll_dy + dy
+                                };
                                 ms.pending_scroll_dx = 0.0;
                                 ms.pending_scroll_dy = 0.0;
                                 ms.has_pending_scroll = false;
@@ -1647,34 +1941,43 @@ impl PlatformWindow for AndroidPlatformWindow {
                                 // Compute release velocity and start fling.
                                 let (vx, vy) = ms.velocity_tracker.velocity();
                                 ms.velocity_tracker.reset();
-                                ms.scroller.fling(vx, vy, logical_x, logical_y);
+                                if !suppress_compat
+                                    && touch.action == crate::android::ANDROID_ACTION_UP
+                                {
+                                    ms.scroller.fling(vx, vy, logical_x, logical_y);
+                                }
 
                                 // Drop momentum lock before dispatching.
                                 drop(ms);
 
-                                let mut guard = cb.lock();
-                                // ScrollWheel Ended for scroll containers.
-                                let _ = guard(gpui::PlatformInput::ScrollWheel(
-                                    gpui::ScrollWheelEvent {
-                                        position,
-                                        delta: gpui::ScrollDelta::Pixels(gpui::point(
-                                            gpui::px(total_dx),
-                                            gpui::px(total_dy),
-                                        )),
-                                        modifiers,
-                                        touch_phase: gpui::TouchPhase::Ended,
-                                    },
-                                ));
-                                // MouseUp for interactive screens (Animations
-                                // drag-to-throw, Shaders touch release).
-                                let _ = guard(gpui::PlatformInput::MouseUp(gpui::MouseUpEvent {
-                                    button: gpui::MouseButton::Left,
-                                    position,
-                                    modifiers,
-                                    click_count: 1,
-                                }));
+                                if !suppress_compat {
+                                    let mut guard = cb.lock();
+                                    // ScrollWheel Ended for scroll containers.
+                                    let _ = guard(gpui::PlatformInput::ScrollWheel(
+                                        gpui::ScrollWheelEvent {
+                                            position,
+                                            delta: gpui::ScrollDelta::Pixels(gpui::point(
+                                                gpui::px(total_dx),
+                                                gpui::px(total_dy),
+                                            )),
+                                            modifiers,
+                                            touch_phase: gpui::TouchPhase::Ended,
+                                        },
+                                    ));
+                                    // MouseUp for interactive screens (Animations
+                                    // drag-to-throw, Shaders touch release).
+                                    let _ =
+                                        guard(gpui::PlatformInput::MouseUp(gpui::MouseUpEvent {
+                                            button: gpui::MouseButton::Left,
+                                            position,
+                                            modifiers,
+                                            click_count: 1,
+                                        }));
+                                }
                             }
-                            TouchState::Idle => {}
+                            TouchState::Pending { .. }
+                            | TouchState::Scrolling { .. }
+                            | TouchState::Idle => {}
                         }
                         *ts = TouchState::Idle;
                     }
@@ -2182,6 +2485,7 @@ mod tests {
             x: 100.0,
             y: 200.0,
             action: 0,
+            ..TouchPoint::default()
         });
 
         let pts = received.lock();
