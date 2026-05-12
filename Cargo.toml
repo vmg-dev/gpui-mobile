@@ -63,7 +63,7 @@ futures      = "0.3"
 raw-window-handle = "0.6"
 
 # ── GPUI core crate (provides Platform trait, event types, geometry, etc.) ───
-gpui = { package = "gpui-ce", git = "https://github.com/vmg-dev/gpui-ce", rev = "4094809dba8bd86e1507aef749d95caf3f8a16de", default-features = false }
+gpui = { package = "gpui-ce", git = "https://github.com/vmg-dev/gpui-ce", rev = "6fb2bce491e2aead4c34d9528e5aef3a1aae73f0", default-features = false }
 
 # ── iOS ──────────────────────────────────────────────────────────────────────
 
