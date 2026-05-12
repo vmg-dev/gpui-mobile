@@ -35,6 +35,7 @@ use std::{
     ptr::{self, NonNull},
     rc::Rc,
     sync::Arc,
+    time::Duration,
 };
 
 const GPUI_WINDOW_IVAR: &str = "gpui_window_ptr";
@@ -422,6 +423,38 @@ fn handle_touches(view: *mut AnyObject, touches: *mut AnyObject, event: *mut Any
     }
 }
 
+fn touch_timestamp(touch: *mut AnyObject) -> Duration {
+    unsafe {
+        let timestamp: f64 = msg_send![touch, timestamp];
+        if timestamp.is_sign_positive() {
+            Duration::from_secs_f64(timestamp)
+        } else {
+            Duration::default()
+        }
+    }
+}
+
+fn touch_force(touch: *mut AnyObject, down: bool) -> (f32, f32) {
+    unsafe {
+        let force: core_graphics::base::CGFloat = msg_send![touch, force];
+        let maximum_force: core_graphics::base::CGFloat = msg_send![touch, maximumPossibleForce];
+        if maximum_force > 0.0 {
+            ((force / maximum_force) as f32, maximum_force as f32)
+        } else if down {
+            (1.0, 1.0)
+        } else {
+            (0.0, 1.0)
+        }
+    }
+}
+
+fn touch_major_radius(touch: *mut AnyObject) -> f32 {
+    unsafe {
+        let radius: core_graphics::base::CGFloat = msg_send![touch, majorRadius];
+        radius as f32
+    }
+}
+
 /// iOS Window backed by UIWindow + UIViewController.
 /// Distance (logical px) the finger must travel before a touch
 /// is promoted from a potential tap to a scroll gesture.
@@ -486,6 +519,8 @@ pub(crate) struct IosWindow {
     touch_pressed: Cell<bool>,
     /// Touch gesture state machine — distinguishes taps from scroll drags.
     touch_state: Cell<TouchState>,
+    /// Last known location per UITouch pointer for first-class pointer events.
+    touch_positions: RefCell<HashMap<u64, Point<Pixels>>>,
     /// Velocity tracker — records recent touch samples during drag gestures
     /// so we can compute the release velocity when the finger lifts.
     velocity_tracker: RefCell<VelocityTracker>,
@@ -590,6 +625,7 @@ impl IosWindow {
                 modifiers: Cell::new(Modifiers::default()),
                 touch_pressed: Cell::new(false),
                 touch_state: Cell::new(TouchState::Idle),
+                touch_positions: RefCell::new(HashMap::new()),
                 velocity_tracker: RefCell::new(VelocityTracker::new()),
                 momentum_scroller: RefCell::new(MomentumScroller::new()),
                 renderer: Mutex::new(None),
@@ -610,12 +646,10 @@ impl IosWindow {
                 view: ios_window.view as *mut c_void,
             };
 
-            let metal_instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
+            let metal_instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
                 backends: wgpu::Backends::METAL,
                 flags: wgpu::InstanceFlags::default(),
                 backend_options: wgpu::BackendOptions::default(),
-                memory_budget_thresholds: wgpu::MemoryBudgetThresholds::default(),
-                display: Some(Box::new(raw_window)),
             });
 
             // Build a temporary surface for WgpuContext initialisation
@@ -623,9 +657,12 @@ impl IosWindow {
             let window_handle = raw_window
                 .window_handle()
                 .expect("iOS window handle unavailable");
+            let display_handle = raw_window
+                .display_handle()
+                .expect("iOS display handle unavailable");
 
             let target = wgpu::SurfaceTargetUnsafe::RawHandle {
-                raw_display_handle: None,
+                raw_display_handle: display_handle.as_raw(),
                 raw_window_handle: window_handle.as_raw(),
             };
 
@@ -795,6 +832,60 @@ impl IosWindow {
             }
         };
 
+        if phase == UITouchPhase::Stationary {
+            // No change — ignore.
+            return;
+        }
+
+        let pointer_key = touch as usize as u64;
+        let pointer = gpui::PointerId::new(pointer_key);
+        let previous_position = self.touch_positions.borrow().get(&pointer_key).copied();
+        let delta = previous_position.map_or(gpui::point(gpui::px(0.0), gpui::px(0.0)), |prev| {
+            let prev_x: f32 = prev.x.into();
+            let prev_y: f32 = prev.y.into();
+            gpui::point(gpui::px(logical_x - prev_x), gpui::px(logical_y - prev_y))
+        });
+        let pointer_phase = match phase {
+            UITouchPhase::Began => gpui::PointerPhase::Down,
+            UITouchPhase::Moved => gpui::PointerPhase::Move,
+            UITouchPhase::Ended => gpui::PointerPhase::Up,
+            UITouchPhase::Cancelled => gpui::PointerPhase::Cancel,
+            UITouchPhase::Stationary => unreachable!("handled above"),
+        };
+        let pointer_down = matches!(phase, UITouchPhase::Began | UITouchPhase::Moved);
+        let (pressure, pressure_max) = touch_force(touch, pointer_down);
+        let radius = touch_major_radius(touch);
+        let mut pointer_event = gpui::PointerEvent::new(
+            pointer,
+            gpui::PointerDeviceKind::Touch,
+            pointer_phase,
+            position,
+            modifiers,
+        );
+        pointer_event.time_stamp = touch_timestamp(touch);
+        pointer_event.delta = delta;
+        pointer_event.buttons = if pointer_down {
+            gpui::PRIMARY_BUTTON
+        } else {
+            0
+        };
+        pointer_event.down = pointer_down;
+        pointer_event.pressure = pressure;
+        pointer_event.pressure_max = pressure_max;
+        pointer_event.radius_major = radius;
+        pointer_event.radius_minor = radius;
+        pointer_event.radius_max = radius;
+        pointer_event.size = radius * 2.0;
+        emit(PlatformInput::Pointer(pointer_event));
+
+        if pointer_down {
+            self.touch_positions
+                .borrow_mut()
+                .insert(pointer_key, position);
+        } else {
+            self.touch_positions.borrow_mut().remove(&pointer_key);
+        }
+
         match phase {
             UITouchPhase::Began => {
                 self.touch_pressed.set(true);
@@ -949,10 +1040,7 @@ impl IosWindow {
                 ts = TouchState::Idle;
             }
 
-            UITouchPhase::Stationary => {
-                // No change — ignore.
-                return;
-            }
+            UITouchPhase::Stationary => unreachable!("handled above"),
         }
 
         self.touch_state.set(ts);
