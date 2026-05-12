@@ -559,7 +559,14 @@ enum TouchState {
         start_y: f32,
         suppress_tap_compat: bool,
     },
-    /// Finger started inside the currently focused text input.
+    /// Finger started inside the currently focused text input, but movement
+    /// has not yet distinguished selection from scrolling.
+    TextPending {
+        start_x: f32,
+        start_y: f32,
+        anchor_utf16: usize,
+    },
+    /// Finger movement selected text input instead of scrolling.
     TextSelecting { anchor_utf16: usize },
     /// Finger has moved beyond the threshold — we are scrolling.
     Scrolling { prev_x: f32, prev_y: f32 },
@@ -1063,7 +1070,11 @@ impl IosWindow {
                     if let Some(handler) = self.input_handler.borrow_mut().as_mut() {
                         handler.set_selected_text_range(anchor_utf16..anchor_utf16, false);
                     }
-                    ts = TouchState::TextSelecting { anchor_utf16 };
+                    ts = TouchState::TextPending {
+                        start_x: logical_x,
+                        start_y: logical_y,
+                        anchor_utf16,
+                    };
                 } else {
                     ts = TouchState::Pending {
                         start_x: logical_x,
@@ -1089,6 +1100,49 @@ impl IosWindow {
                     .record(logical_x, logical_y);
 
                 match ts {
+                    TouchState::TextPending {
+                        start_x,
+                        start_y,
+                        anchor_utf16,
+                    } => {
+                        let dx = logical_x - start_x;
+                        let dy = logical_y - start_y;
+                        let distance = (dx * dx + dy * dy).sqrt();
+
+                        if distance > SCROLL_SLOP {
+                            if dx.abs() > dy.abs() {
+                                ts = TouchState::TextSelecting { anchor_utf16 };
+                                if let Some(handler) = self.input_handler.borrow_mut().as_mut() {
+                                    if let Some(current_utf16) =
+                                        handler.character_index_for_point(position)
+                                    {
+                                        let (range, reversed) = if current_utf16 < anchor_utf16 {
+                                            (current_utf16..anchor_utf16, true)
+                                        } else {
+                                            (anchor_utf16..current_utf16, false)
+                                        };
+                                        handler.set_selected_text_range(range, reversed);
+                                    }
+                                }
+                            } else {
+                                ts = TouchState::Scrolling {
+                                    prev_x: logical_x,
+                                    prev_y: logical_y,
+                                };
+                                self.dispatch_input(PlatformInput::ScrollWheel(
+                                    gpui::ScrollWheelEvent {
+                                        position,
+                                        delta: gpui::ScrollDelta::Pixels(gpui::point(
+                                            gpui::px(dx),
+                                            gpui::px(dy),
+                                        )),
+                                        modifiers,
+                                        touch_phase: gpui::TouchPhase::Started,
+                                    },
+                                ));
+                            }
+                        }
+                    }
                     TouchState::TextSelecting { anchor_utf16 } => {
                         if let Some(handler) = self.input_handler.borrow_mut().as_mut() {
                             if let Some(current_utf16) = handler.character_index_for_point(position)
@@ -1180,6 +1234,9 @@ impl IosWindow {
             UITouchPhase::Ended | UITouchPhase::Cancelled => {
                 self.touch_pressed.set(false);
                 match ts {
+                    TouchState::TextPending { .. } => {
+                        self.velocity_tracker.borrow_mut().reset();
+                    }
                     TouchState::TextSelecting { .. } => {
                         self.velocity_tracker.borrow_mut().reset();
                     }
