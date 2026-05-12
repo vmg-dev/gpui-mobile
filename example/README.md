@@ -351,4 +351,4 @@ Touch events are translated to GPUI mouse events in
 
 ## License
 
-Proprietary. All rights reserved.
+Apache-2.0
