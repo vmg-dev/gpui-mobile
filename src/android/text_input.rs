@@ -58,7 +58,10 @@ pub fn has_pending() -> bool {
 pub fn drain_into(input_handler: &mut PlatformInputHandler) -> bool {
     let mut drained = false;
     loop {
-        let command = commands().lock().ok().and_then(|mut commands| commands.pop_front());
+        let command = commands()
+            .lock()
+            .ok()
+            .and_then(|mut commands| commands.pop_front());
         let Some(command) = command else {
             break;
         };

@@ -382,11 +382,7 @@ fn register_text_input_view_class() -> &'static AnyClass {
             *(*this).get_ivar::<Bool>("_secureTextEntry")
         }
         #[allow(deprecated)]
-        unsafe extern "C" fn set_secure_text_entry(
-            this: *mut AnyObject,
-            _sel: Sel,
-            val: Bool,
-        ) {
+        unsafe extern "C" fn set_secure_text_entry(this: *mut AnyObject, _sel: Sel, val: Bool) {
             *(*this).get_mut_ivar::<Bool>("_secureTextEntry") = val;
         }
 
@@ -563,6 +559,8 @@ enum TouchState {
         start_y: f32,
         suppress_tap_compat: bool,
     },
+    /// Finger started inside the currently focused text input.
+    TextSelecting { anchor_utf16: usize },
     /// Finger has moved beyond the threshold — we are scrolling.
     Scrolling { prev_x: f32, prev_y: f32 },
 }
@@ -1049,11 +1047,30 @@ impl IosWindow {
                 self.momentum_scroller.borrow_mut().cancel();
                 self.velocity_tracker.borrow_mut().reset();
 
-                ts = TouchState::Pending {
-                    start_x: logical_x,
-                    start_y: logical_y,
-                    suppress_tap_compat: pointer_result.default_prevented,
-                };
+                let text_anchor = self
+                    .input_handler
+                    .borrow_mut()
+                    .as_mut()
+                    .and_then(|handler| {
+                        handler.bounds().and_then(|bounds| {
+                            bounds
+                                .contains(&position)
+                                .then(|| handler.character_index_for_point(position))
+                                .flatten()
+                        })
+                    });
+                if let Some(anchor_utf16) = text_anchor {
+                    if let Some(handler) = self.input_handler.borrow_mut().as_mut() {
+                        handler.set_selected_text_range(anchor_utf16..anchor_utf16, false);
+                    }
+                    ts = TouchState::TextSelecting { anchor_utf16 };
+                } else {
+                    ts = TouchState::Pending {
+                        start_x: logical_x,
+                        start_y: logical_y,
+                        suppress_tap_compat: pointer_result.default_prevented,
+                    };
+                }
                 // Do NOT emit MouseDown here — wait until we know whether
                 // this is a tap or a scroll.  Emitting MouseDown immediately
                 // causes accidental navigation when the user starts scrolling
@@ -1072,6 +1089,19 @@ impl IosWindow {
                     .record(logical_x, logical_y);
 
                 match ts {
+                    TouchState::TextSelecting { anchor_utf16 } => {
+                        if let Some(handler) = self.input_handler.borrow_mut().as_mut() {
+                            if let Some(current_utf16) = handler.character_index_for_point(position)
+                            {
+                                let (range, reversed) = if current_utf16 < anchor_utf16 {
+                                    (current_utf16..anchor_utf16, true)
+                                } else {
+                                    (anchor_utf16..current_utf16, false)
+                                };
+                                handler.set_selected_text_range(range, reversed);
+                            }
+                        }
+                    }
                     TouchState::Pending {
                         start_x,
                         start_y,
@@ -1150,6 +1180,9 @@ impl IosWindow {
             UITouchPhase::Ended | UITouchPhase::Cancelled => {
                 self.touch_pressed.set(false);
                 match ts {
+                    TouchState::TextSelecting { .. } => {
+                        self.velocity_tracker.borrow_mut().reset();
+                    }
                     TouchState::Pending {
                         start_x,
                         start_y,
@@ -1360,7 +1393,8 @@ impl IosWindow {
             } else {
                 Bool::NO
             };
-            let _: () = msg_send![self.text_input_view, setSecureTextEntry: secure_text_entry_value];
+            let _: () =
+                msg_send![self.text_input_view, setSecureTextEntry: secure_text_entry_value];
             log::info!("GPUI iOS: setAutocorrectionType");
             let autocorrection_type = if secure_text_entry { 1_isize } else { 0_isize };
             let _: () = msg_send![self.text_input_view, setAutocorrectionType: autocorrection_type];
@@ -1410,7 +1444,10 @@ impl IosWindow {
                 .to_string_lossy()
                 .into_owned();
 
-            log::info!("GPUI iOS: Text input via PlatformInputHandler: {:?}", text_str);
+            log::info!(
+                "GPUI iOS: Text input via PlatformInputHandler: {:?}",
+                text_str
+            );
             if let Some(handler) = self.input_handler.borrow_mut().as_mut() {
                 handler.replace_text_in_range(None, &text_str);
             }
