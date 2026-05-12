@@ -1556,8 +1556,15 @@ impl PlatformWindow for AndroidPlatformWindow {
                 },
             }
 
+            #[derive(Clone, Copy, Debug)]
+            struct PointerSequence {
+                pointer: gpui::PointerId,
+                previous_position: gpui::Point<gpui::Pixels>,
+            }
+
             let state = Mutex::new(TouchState::Idle);
-            let pointer_positions = Mutex::new(HashMap::<i32, gpui::Point<gpui::Pixels>>::new());
+            let pointer_sequences = Mutex::new(HashMap::<i32, PointerSequence>::new());
+            let mut next_pointer_sequence = 0_u64;
 
             self.window.on_touch(move |touch| {
                 // Android delivers touch coordinates in physical (device)
@@ -1571,29 +1578,75 @@ impl PlatformWindow for AndroidPlatformWindow {
                 let Some(pointer_phase) = pointer_phase_from_action(touch.action) else {
                     return;
                 };
-                let pointer = gpui::PointerId::new(touch.id as u64);
+                let android_pointer = touch.id;
+                let (pointer, delta) = {
+                    let mut sequences = pointer_sequences.lock();
+                    let new_pointer = |next_pointer_sequence: &mut u64| {
+                        *next_pointer_sequence = next_pointer_sequence.wrapping_add(1).max(1);
+                        gpui::PointerId::new(*next_pointer_sequence)
+                    };
+
+                    match pointer_phase {
+                        gpui::PointerPhase::Down | gpui::PointerPhase::PanZoomStart => {
+                            let pointer = new_pointer(&mut next_pointer_sequence);
+                            sequences.insert(
+                                android_pointer,
+                                PointerSequence {
+                                    pointer,
+                                    previous_position: position,
+                                },
+                            );
+                            (pointer, gpui::point(gpui::px(0.0), gpui::px(0.0)))
+                        }
+                        gpui::PointerPhase::Move
+                        | gpui::PointerPhase::Up
+                        | gpui::PointerPhase::Cancel
+                        | gpui::PointerPhase::PanZoomUpdate
+                        | gpui::PointerPhase::PanZoomEnd => {
+                            let sequence = sequences.entry(android_pointer).or_insert_with(|| {
+                                PointerSequence {
+                                    pointer: new_pointer(&mut next_pointer_sequence),
+                                    previous_position: position,
+                                }
+                            });
+                            let previous_x: f32 = sequence.previous_position.x.into();
+                            let previous_y: f32 = sequence.previous_position.y.into();
+                            let delta = gpui::point(
+                                gpui::px(logical_x - previous_x),
+                                gpui::px(logical_y - previous_y),
+                            );
+                            sequence.previous_position = position;
+                            (sequence.pointer, delta)
+                        }
+                        gpui::PointerPhase::Added
+                        | gpui::PointerPhase::Hover
+                        | gpui::PointerPhase::Removed => {
+                            let sequence = sequences.entry(android_pointer).or_insert_with(|| {
+                                PointerSequence {
+                                    pointer: new_pointer(&mut next_pointer_sequence),
+                                    previous_position: position,
+                                }
+                            });
+                            let previous_x: f32 = sequence.previous_position.x.into();
+                            let previous_y: f32 = sequence.previous_position.y.into();
+                            let delta = gpui::point(
+                                gpui::px(logical_x - previous_x),
+                                gpui::px(logical_y - previous_y),
+                            );
+                            sequence.previous_position = position;
+                            (sequence.pointer, delta)
+                        }
+                    }
+                };
                 let buttons = gpui_buttons_for_pointer(&touch, kind, pointer_phase);
                 let pointer_down = matches!(
                     pointer_phase,
                     gpui::PointerPhase::Down | gpui::PointerPhase::Move
                 ) && (is_direct_touch(kind) || buttons != 0);
-                let delta = {
-                    let positions = pointer_positions.lock();
-                    positions.get(&touch.id).copied().map_or(
-                        gpui::point(gpui::px(0.0), gpui::px(0.0)),
-                        |previous| {
-                            let previous_x: f32 = previous.x.into();
-                            let previous_y: f32 = previous.y.into();
-                            gpui::point(
-                                gpui::px(logical_x - previous_x),
-                                gpui::px(logical_y - previous_y),
-                            )
-                        },
-                    )
-                };
 
                 let mut pointer_event =
                     gpui::PointerEvent::new(pointer, kind, pointer_phase, position, modifiers);
+                pointer_event.embedder_id = android_pointer.max(0) as u64;
                 pointer_event.time_stamp = if touch.event_time_nanos > 0 {
                     std::time::Duration::from_nanos(touch.event_time_nanos as u64)
                 } else {
@@ -1619,18 +1672,14 @@ impl PlatformWindow for AndroidPlatformWindow {
                 };
                 let pointer_default_prevented = pointer_result.default_prevented;
 
-                {
-                    let mut positions = pointer_positions.lock();
-                    if pointer_down {
-                        positions.insert(touch.id, position);
-                    } else if matches!(
-                        pointer_phase,
-                        gpui::PointerPhase::Up
-                            | gpui::PointerPhase::Cancel
-                            | gpui::PointerPhase::Removed
-                    ) {
-                        positions.remove(&touch.id);
-                    }
+                if matches!(
+                    pointer_phase,
+                    gpui::PointerPhase::Up
+                        | gpui::PointerPhase::Cancel
+                        | gpui::PointerPhase::Removed
+                        | gpui::PointerPhase::PanZoomEnd
+                ) {
+                    pointer_sequences.lock().remove(&android_pointer);
                 }
 
                 if pointer_default_prevented {
@@ -1638,7 +1687,7 @@ impl PlatformWindow for AndroidPlatformWindow {
                     match *ts {
                         TouchState::Pending { pointer_id, .. }
                         | TouchState::Scrolling { pointer_id, .. }
-                            if pointer_id == touch.id
+                            if pointer_id == android_pointer
                                 && matches!(
                                     pointer_phase,
                                     gpui::PointerPhase::Up | gpui::PointerPhase::Cancel
@@ -1651,7 +1700,7 @@ impl PlatformWindow for AndroidPlatformWindow {
                     if touch.action == crate::android::ANDROID_ACTION_DOWN && is_direct_touch(kind)
                     {
                         *ts = TouchState::Pending {
-                            pointer_id: touch.id,
+                            pointer_id: android_pointer,
                             start_x: logical_x,
                             start_y: logical_y,
                             suppress_compat: true,
@@ -1742,7 +1791,7 @@ impl PlatformWindow for AndroidPlatformWindow {
                             ms.has_pending_scroll = false;
                         }
                         *ts = TouchState::Pending {
-                            pointer_id: touch.id,
+                            pointer_id: android_pointer,
                             start_x: logical_x,
                             start_y: logical_y,
                             suppress_compat: false,
@@ -1780,7 +1829,7 @@ impl PlatformWindow for AndroidPlatformWindow {
                                 start_x,
                                 start_y,
                                 suppress_compat,
-                            } if pointer_id == touch.id => {
+                            } if pointer_id == android_pointer => {
                                 let dx = logical_x - start_x;
                                 let dy = logical_y - start_y;
                                 let distance = (dx * dx + dy * dy).sqrt();
@@ -1813,7 +1862,7 @@ impl PlatformWindow for AndroidPlatformWindow {
                                 prev_x,
                                 prev_y,
                                 suppress_compat,
-                            } if pointer_id == touch.id => {
+                            } if pointer_id == android_pointer => {
                                 let dx = logical_x - prev_x;
                                 let dy = logical_y - prev_y;
                                 *ts = TouchState::Scrolling {
@@ -1856,7 +1905,7 @@ impl PlatformWindow for AndroidPlatformWindow {
                                 pointer_id,
                                 suppress_compat: true,
                                 ..
-                            } if pointer_id == touch.id
+                            } if pointer_id == android_pointer
                         );
                         if !suppress_compat {
                             let mut guard = cb.lock();
@@ -1876,7 +1925,7 @@ impl PlatformWindow for AndroidPlatformWindow {
                                 start_x,
                                 start_y,
                                 suppress_compat,
-                            } if pointer_id == touch.id => {
+                            } if pointer_id == android_pointer => {
                                 // Finger lifted without exceeding slop →
                                 // this is a tap.  Emit MouseDown + MouseUp
                                 // together at the original down position so
@@ -1914,7 +1963,7 @@ impl PlatformWindow for AndroidPlatformWindow {
                                 prev_x,
                                 prev_y,
                                 suppress_compat,
-                            } if pointer_id == touch.id => {
+                            } if pointer_id == android_pointer => {
                                 // End the active touch-scroll gesture.
                                 // Include the final delta in the coalesced
                                 // accumulator, then flush it immediately
