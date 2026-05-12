@@ -1571,7 +1571,15 @@ impl PlatformWindow for AndroidPlatformWindow {
                     start_y: f32,
                     suppress_compat: bool,
                 },
-                /// Finger started inside the currently focused text input.
+                /// Finger started inside the currently focused text input,
+                /// but movement has not yet distinguished selection from scrolling.
+                TextPending {
+                    pointer_id: i32,
+                    start_x: f32,
+                    start_y: f32,
+                    anchor_utf16: usize,
+                },
+                /// Finger movement selected text input instead of scrolling.
                 TextSelecting {
                     pointer_id: i32,
                     anchor_utf16: usize,
@@ -1715,6 +1723,7 @@ impl PlatformWindow for AndroidPlatformWindow {
                     let mut ts = state.lock();
                     match *ts {
                         TouchState::Pending { pointer_id, .. }
+                        | TouchState::TextPending { pointer_id, .. }
                         | TouchState::TextSelecting { pointer_id, .. }
                         | TouchState::Scrolling { pointer_id, .. }
                             if pointer_id == android_pointer
@@ -1837,8 +1846,10 @@ impl PlatformWindow for AndroidPlatformWindow {
                                 handler.set_selected_text_range(anchor_utf16..anchor_utf16, false);
                                 crate::android::text_input::sync_state_to_java(handler);
                             }
-                            *ts = TouchState::TextSelecting {
+                            *ts = TouchState::TextPending {
                                 pointer_id: android_pointer,
+                                start_x: logical_x,
+                                start_y: logical_y,
                                 anchor_utf16,
                             };
                         } else {
@@ -1877,6 +1888,57 @@ impl PlatformWindow for AndroidPlatformWindow {
                         ms.velocity_tracker.record(logical_x, logical_y);
 
                         match *ts {
+                            TouchState::TextPending {
+                                pointer_id,
+                                start_x,
+                                start_y,
+                                anchor_utf16,
+                            } if pointer_id == android_pointer => {
+                                let dx = logical_x - start_x;
+                                let dy = logical_y - start_y;
+                                let distance = (dx * dx + dy * dy).sqrt();
+
+                                if distance > SCROLL_SLOP {
+                                    if dx.abs() > dy.abs() {
+                                        *ts = TouchState::TextSelecting {
+                                            pointer_id,
+                                            anchor_utf16,
+                                        };
+                                        let mut input_handler = input_handler.0.lock();
+                                        if let Some(handler) = input_handler.as_mut() {
+                                            if let Some(current_utf16) =
+                                                handler.character_index_for_point(position)
+                                            {
+                                                let (range, reversed) =
+                                                    if current_utf16 < anchor_utf16 {
+                                                        (current_utf16..anchor_utf16, true)
+                                                    } else {
+                                                        (anchor_utf16..current_utf16, false)
+                                                    };
+                                                handler.set_selected_text_range(range, reversed);
+                                                crate::android::text_input::sync_state_to_java(
+                                                    handler,
+                                                );
+                                            }
+                                        }
+                                    } else {
+                                        *ts = TouchState::Scrolling {
+                                            pointer_id,
+                                            prev_x: logical_x,
+                                            prev_y: logical_y,
+                                            suppress_compat: false,
+                                        };
+                                        ms.pending_scroll_dx += dx;
+                                        ms.pending_scroll_dy += dy;
+                                        ms.pending_scroll_pos_x = logical_x;
+                                        ms.pending_scroll_pos_y = logical_y;
+                                        if !ms.has_pending_scroll {
+                                            ms.pending_scroll_phase = gpui::TouchPhase::Started;
+                                        }
+                                        ms.has_pending_scroll = true;
+                                    }
+                                }
+                            }
                             TouchState::TextSelecting {
                                 pointer_id,
                                 anchor_utf16,
@@ -1955,6 +2017,7 @@ impl PlatformWindow for AndroidPlatformWindow {
                                 }
                             }
                             TouchState::Pending { .. }
+                            | TouchState::TextPending { .. }
                             | TouchState::TextSelecting { .. }
                             | TouchState::Scrolling { .. }
                             | TouchState::Idle => {
@@ -1974,7 +2037,8 @@ impl PlatformWindow for AndroidPlatformWindow {
                                 pointer_id,
                                 suppress_compat: true,
                                 ..
-                            } | TouchState::TextSelecting { pointer_id, .. }
+                            } | TouchState::TextPending { pointer_id, .. }
+                            | TouchState::TextSelecting { pointer_id, .. }
                             | TouchState::Scrolling {
                                 pointer_id,
                                 suppress_compat: true,
@@ -1994,6 +2058,13 @@ impl PlatformWindow for AndroidPlatformWindow {
                     // ── ACTION_UP / ACTION_CANCEL ────────────────────────
                     crate::android::ANDROID_ACTION_UP | crate::android::ANDROID_ACTION_CANCEL => {
                         match *ts {
+                            TouchState::TextPending { pointer_id, .. }
+                                if pointer_id == android_pointer =>
+                            {
+                                let mut ms = momentum.lock();
+                                ms.velocity_tracker.reset();
+                                ms.has_pending_scroll = false;
+                            }
                             TouchState::TextSelecting { pointer_id, .. }
                                 if pointer_id == android_pointer =>
                             {
@@ -2106,6 +2177,7 @@ impl PlatformWindow for AndroidPlatformWindow {
                                 }
                             }
                             TouchState::Pending { .. }
+                            | TouchState::TextPending { .. }
                             | TouchState::TextSelecting { .. }
                             | TouchState::Scrolling { .. }
                             | TouchState::Idle => {}
