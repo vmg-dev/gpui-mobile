@@ -606,17 +606,17 @@ impl IosWindow {
                 transparent: false,
             };
 
+            let raw_window = RawIosWindow {
+                view: ios_window.view as *mut c_void,
+            };
+
             let metal_instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
                 backends: wgpu::Backends::METAL,
                 flags: wgpu::InstanceFlags::default(),
                 backend_options: wgpu::BackendOptions::default(),
                 memory_budget_thresholds: wgpu::MemoryBudgetThresholds::default(),
-                display: None,
+                display: Some(Box::new(raw_window)),
             });
-
-            let raw_window = RawIosWindow {
-                view: ios_window.view as *mut c_void,
-            };
 
             // Build a temporary surface for WgpuContext initialisation
             // (adapter selection needs a surface to test compatibility).
