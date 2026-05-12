@@ -1590,21 +1590,17 @@ pub fn set_system_chrome(style: &crate::SystemChromeStyle) {
 /// The NDK function handles the UI-thread dispatch internally.
 ///
 /// Text input arrives via `KeyEvent`s through `process_input_events()`.
-pub fn show_keyboard_android(_keyboard_type: crate::KeyboardType) {
-    if let Some(app) = android_app() {
-        log::info!("show_keyboard_android: using NDK show_soft_input");
-        app.show_soft_input(false);
-    }
+pub fn show_keyboard_android(keyboard_type: crate::KeyboardType) {
+    log::info!("show_keyboard_android: using GpuiTextInputView InputConnection");
+    super::text_input::show_keyboard(keyboard_type);
 }
 
 /// Hide the software keyboard on Android.
 ///
 /// Uses the NDK `ANativeActivity_hideSoftInput` via `android-activity`.
 pub fn hide_keyboard_android() {
-    if let Some(app) = android_app() {
-        log::info!("hide_keyboard_android: using NDK hide_soft_input");
-        app.hide_soft_input(false);
-    }
+    log::info!("hide_keyboard_android: using GpuiTextInputView InputConnection");
+    super::text_input::hide_keyboard();
 }
 
 // ── tests ─────────────────────────────────────────────────────────────────────

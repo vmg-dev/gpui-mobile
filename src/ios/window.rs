@@ -312,6 +312,7 @@ fn register_text_input_view_class() -> &'static AnyClass {
         decl.add_ivar::<isize>(c"_keyboardType"); // UIKeyboardType
         decl.add_ivar::<isize>(c"_autocorrectionType"); // UITextAutocorrectionType
         decl.add_ivar::<isize>(c"_autocapitalizationType"); // UITextAutocapitalizationType
+        decl.add_ivar::<Bool>(c"_secureTextEntry"); // UITextInputTraits secureTextEntry
 
         // --- UIKeyInput protocol methods ---
 
@@ -376,6 +377,18 @@ fn register_text_input_view_class() -> &'static AnyClass {
         ) {
             *(*this).get_mut_ivar::<isize>("_autocapitalizationType") = val;
         }
+        #[allow(deprecated)]
+        unsafe extern "C" fn get_secure_text_entry(this: *mut AnyObject, _sel: Sel) -> Bool {
+            *(*this).get_ivar::<Bool>("_secureTextEntry")
+        }
+        #[allow(deprecated)]
+        unsafe extern "C" fn set_secure_text_entry(
+            this: *mut AnyObject,
+            _sel: Sel,
+            val: Bool,
+        ) {
+            *(*this).get_mut_ivar::<Bool>("_secureTextEntry") = val;
+        }
 
         unsafe {
             decl.add_method(
@@ -419,6 +432,14 @@ fn register_text_input_view_class() -> &'static AnyClass {
             decl.add_method(
                 sel!(setAutocapitalizationType:),
                 set_autocapitalization_type as unsafe extern "C" fn(*mut AnyObject, Sel, isize),
+            );
+            decl.add_method(
+                sel!(isSecureTextEntry),
+                get_secure_text_entry as unsafe extern "C" fn(*mut AnyObject, Sel) -> Bool,
+            );
+            decl.add_method(
+                sel!(setSecureTextEntry:),
+                set_secure_text_entry as unsafe extern "C" fn(*mut AnyObject, Sel, Bool),
             );
         }
 
@@ -1321,6 +1342,7 @@ impl IosWindow {
                 KeyboardType::NumberPad => 4,    // UIKeyboardTypeNumberPad
                 KeyboardType::URL => 3,          // UIKeyboardTypeURL
                 KeyboardType::Decimal => 8,      // UIKeyboardTypeDecimalPad
+                KeyboardType::Password => 0,     // UIKeyboardTypeDefault + secure text entry
             };
             log::info!(
                 "GPUI iOS: text_input_view={:p}, setKeyboardType: {}",
@@ -1332,8 +1354,16 @@ impl IosWindow {
                 return;
             }
             let _: () = msg_send![self.text_input_view, setKeyboardType: kb_type];
+            let secure_text_entry = matches!(keyboard_type, KeyboardType::Password);
+            let secure_text_entry_value = if secure_text_entry {
+                Bool::YES
+            } else {
+                Bool::NO
+            };
+            let _: () = msg_send![self.text_input_view, setSecureTextEntry: secure_text_entry_value];
             log::info!("GPUI iOS: setAutocorrectionType");
-            let _: () = msg_send![self.text_input_view, setAutocorrectionType: 1_isize];
+            let autocorrection_type = if secure_text_entry { 1_isize } else { 0_isize };
+            let _: () = msg_send![self.text_input_view, setAutocorrectionType: autocorrection_type];
             log::info!("GPUI iOS: setAutocapitalizationType");
             let _: () = msg_send![self.text_input_view, setAutocapitalizationType: 0_isize];
             log::info!("GPUI iOS: scheduling becomeFirstResponder");
@@ -1380,71 +1410,30 @@ impl IosWindow {
                 .to_string_lossy()
                 .into_owned();
 
-            log::info!("GPUI iOS: Text input: {:?}", text_str);
-
-            // Try the global text input callback (for our TextInput components).
-            // The text is captured in PENDING_TEXT regardless of whether we also
-            // send key events below.
-            let dispatched = crate::dispatch_text_input(&text_str);
-
-            // Try the input handler (for GPUI's built-in text fields)
-            if !dispatched {
-                if let Some(handler) = self.input_handler.borrow_mut().as_mut() {
-                    handler.replace_text_in_range(None, &text_str);
-                    return;
-                }
-            }
-
-            // Send key events through GPUI's input callback.
-            // Even if dispatch_text_input captured the text, we still send key
-            // events so GPUI triggers a re-render cycle (which runs
-            // drain_pending_text and updates the UI).
-            for c in text_str.chars() {
-                let keystroke = gpui::Keystroke {
-                    modifiers: Modifiers::default(),
-                    key: c.to_string(),
-                    key_char: Some(c.to_string()),
-                };
-
-                let event = PlatformInput::KeyDown(gpui::KeyDownEvent {
-                    keystroke,
-                    is_held: false,
-                    prefer_character_input: true,
-                });
-
-                if let Some(callback) = self.input_callback.borrow_mut().as_mut() {
-                    callback(event);
-                }
+            log::info!("GPUI iOS: Text input via PlatformInputHandler: {:?}", text_str);
+            if let Some(handler) = self.input_handler.borrow_mut().as_mut() {
+                handler.replace_text_in_range(None, &text_str);
             }
         }
     }
 
     /// Handle the delete-backward action from the software keyboard.
-    ///
-    /// This is called by the `GPUITextInputView` when the user taps the
-    /// backspace key.  We dispatch a special sentinel ("\x08") through the
-    /// global text input callback so the active TextInput component can
-    /// remove the last character.
     pub fn handle_delete_backward(&self) {
         log::info!("GPUI iOS: deleteBackward");
-
-        // Try the global callback first (backspace = "\x08")
-        crate::dispatch_text_input("\x08");
-
-        // Always send a Backspace KeyDown event through GPUI to trigger
-        // a re-render cycle (which runs drain_pending_text).
-        let keystroke = gpui::Keystroke {
-            modifiers: Modifiers::default(),
-            key: "backspace".to_string(),
-            key_char: None,
-        };
-        let event = PlatformInput::KeyDown(gpui::KeyDownEvent {
-            keystroke,
-            is_held: false,
-            prefer_character_input: false,
-        });
-        if let Some(callback) = self.input_callback.borrow_mut().as_mut() {
-            callback(event);
+        if let Some(handler) = self.input_handler.borrow_mut().as_mut() {
+            let Some(selection) = handler.selected_text_range(true) else {
+                return;
+            };
+            let mut start = selection.range.start;
+            let mut end = selection.range.end;
+            if start == end {
+                if start == 0 {
+                    return;
+                }
+                start -= 1;
+                end = start + 1;
+            }
+            handler.replace_text_in_range(Some(start..end), "");
         }
     }
 

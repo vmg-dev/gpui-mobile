@@ -1084,10 +1084,18 @@ impl Drop for AndroidWindow {
 /// struct provides the trait implementation by delegating to the underlying
 /// `AndroidWindow` methods.
 #[allow(clippy::type_complexity)]
+struct MainThreadInputHandlerSlot(Mutex<Option<PlatformInputHandler>>);
+
+// Android invokes GPUI frame callbacks on the main thread. PlatformInputHandler
+// is also main-thread bound, but the Android callback registry requires Send.
+unsafe impl Send for MainThreadInputHandlerSlot {}
+unsafe impl Sync for MainThreadInputHandlerSlot {}
+
+#[allow(clippy::type_complexity)]
 pub struct AndroidPlatformWindow {
     window: Arc<AndroidWindow>,
     display: Option<Rc<dyn PlatformDisplay>>,
-    input_handler: Option<PlatformInputHandler>,
+    input_handler: Arc<MainThreadInputHandlerSlot>,
     title: String,
     /// Shared momentum scrolling state — used by both the touch callback
     /// (to start/cancel flings) and the frame callback (to pump inertia).
@@ -1108,7 +1116,7 @@ impl AndroidPlatformWindow {
         Self {
             window,
             display,
-            input_handler: None,
+            input_handler: Arc::new(MainThreadInputHandlerSlot(Mutex::new(None))),
             title: String::new(),
             momentum: Arc::new(Mutex::new(MomentumState {
                 velocity_tracker: VelocityTracker::new(),
@@ -1224,11 +1232,15 @@ impl PlatformWindow for AndroidPlatformWindow {
     }
 
     fn set_input_handler(&mut self, input_handler: PlatformInputHandler) {
-        self.input_handler = Some(input_handler);
+        let mut input_handler_slot = self.input_handler.0.lock();
+        *input_handler_slot = Some(input_handler);
+        if let Some(input_handler) = input_handler_slot.as_mut() {
+            crate::android::text_input::sync_state_to_java(input_handler);
+        }
     }
 
     fn take_input_handler(&mut self) -> Option<PlatformInputHandler> {
-        self.input_handler.take()
+        self.input_handler.0.lock().take()
     }
 
     fn prompt(
@@ -1304,6 +1316,7 @@ impl PlatformWindow for AndroidPlatformWindow {
         // We need a reference to the shared momentum state and the shared
         // input callback so that the frame callback can pump inertia.
         let momentum = Arc::clone(&self.momentum);
+        let input_handler = Arc::clone(&self.input_handler);
         // The input_cb Arc is set up by on_input.  We store a clone of it
         // on the struct so on_request_frame can capture it.
         let input_cb = Arc::clone(&self.momentum_input_cb);
@@ -1411,15 +1424,25 @@ impl PlatformWindow for AndroidPlatformWindow {
                 }
             }
 
+            let text_input_dirty = if crate::android::text_input::has_pending() {
+                if let Some(input_handler) = input_handler.0.lock().as_mut() {
+                    crate::android::text_input::drain_into(input_handler)
+                } else {
+                    false
+                }
+            } else {
+                false
+            };
+
             // Check if text input arrived since last frame — if so, force a
-            // render so drain_pending_text() runs and the UI updates.
+            // render so text edits are painted.
             let text_dirty =
                 crate::TEXT_INPUT_DIRTY.swap(false, std::sync::atomic::Ordering::AcqRel);
 
             let mut cb = send_callback.lock();
             cb(RequestFrameOptions {
                 require_presentation: true,
-                force_render: text_dirty,
+                force_render: text_dirty || text_input_dirty,
             });
         });
     }
