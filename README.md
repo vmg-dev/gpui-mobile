@@ -90,7 +90,7 @@ The example app includes screens for Home, Counter, About, Settings, Components 
 
 ## License
 
-Proprietary. All rights reserved.
+Licensed under [Apache-2.0](LICENSE-APACHE).
 
 ## Acknowledgements
 
