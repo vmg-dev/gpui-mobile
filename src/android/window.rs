@@ -34,12 +34,12 @@
 
 use anyhow::{Context as _, Result};
 use futures::channel::oneshot;
+use gpui::wgpu::{wgpu, GpuContext, WgpuRenderer, WgpuSurfaceConfig};
 use gpui::{
     self, AtlasKey, AtlasTile, Capslock, DispatchEventResult, GpuSpecs, Modifiers, PlatformAtlas,
     PlatformDisplay, PlatformInputHandler, PlatformWindow, PromptButton, PromptLevel,
     RequestFrameOptions, WindowBackgroundAppearance, WindowBounds, WindowControlArea,
 };
-use gpui_wgpu::{wgpu, GpuContext, WgpuRenderer, WgpuSurfaceConfig};
 use parking_lot::Mutex;
 use raw_window_handle::{
     AndroidDisplayHandle, AndroidNdkWindowHandle, HasDisplayHandle, HasWindowHandle,
@@ -283,7 +283,7 @@ struct WindowState {
     /// Created once and reused across window re-creations.
     gpu_context: GpuContext,
 
-    /// The wgpu renderer from `gpui_wgpu`.  `None` while the surface is unavailable.
+    /// The wgpu renderer from GPUI. `None` while the surface is unavailable.
     renderer: Option<WgpuRenderer>,
 
     /// Cached display geometry.
@@ -387,7 +387,7 @@ impl AndroidWindow {
             height,
             transparent,
         )
-        .context("failed to create gpui_wgpu renderer")?;
+        .context("failed to create GPUI wgpu renderer")?;
 
         let id = native_window.ptr().as_ptr() as u64;
 
@@ -470,7 +470,6 @@ impl AndroidWindow {
             let config = WgpuSurfaceConfig {
                 size: gpui::size(gpui::DevicePixels(width), gpui::DevicePixels(height)),
                 transparent,
-                preferred_present_mode: Some(wgpu::PresentMode::Mailbox),
             };
             let instance = state
                 .gpu_context
@@ -633,14 +632,14 @@ impl AndroidWindow {
 
     /// Draw `scene` into the window's next frame.
     ///
-    /// Accepts a `gpui::Scene` directly — the `gpui_wgpu::WgpuRenderer`
+    /// Accepts a `gpui::Scene` directly — the `gpui::wgpu::WgpuRenderer`
     /// natively consumes it without any type bridging.
     ///
     /// No-ops if the renderer is not available (surface lost).
     ///
     /// **Guard against empty scenes**: If the scene contains zero
     /// primitives (no quads, shadows, paths, underlines, or sprites)
-    /// we skip the draw entirely.  The upstream `gpui_wgpu` renderer
+    /// we skip the draw entirely.  The GPUI WGPU renderer
     /// clears the surface to transparent/black before drawing, so
     /// presenting an empty scene produces a visible flash where all
     /// content disappears for one frame.  This commonly happens:
@@ -1058,7 +1057,6 @@ impl AndroidWindow {
         let config = WgpuSurfaceConfig {
             size: gpui::size(gpui::DevicePixels(width), gpui::DevicePixels(height)),
             transparent,
-            preferred_present_mode: Some(wgpu::PresentMode::Mailbox),
         };
 
         WgpuRenderer::new(gpu_context, &raw, config, None)
@@ -1815,7 +1813,7 @@ impl PlatformWindow for AndroidPlatformWindow {
     }
 
     fn draw(&self, scene: &gpui::Scene) {
-        // gpui_wgpu::WgpuRenderer natively consumes gpui::Scene — no bridging needed.
+        // GPUI's WgpuRenderer natively consumes gpui::Scene - no bridging needed.
         log::trace!(
             "AndroidPlatformWindow::draw — {} quads, {} shadows",
             scene.quads.len(),
@@ -1972,7 +1970,7 @@ impl PlatformWindow for AndroidPlatformWindow {
 
 /// A minimal fallback `PlatformAtlas` used only when the renderer is not
 /// available (e.g. before the wgpu surface is created).  Once the
-/// `gpui_wgpu::WgpuRenderer` is initialised, `sprite_atlas()` returns the
+/// `gpui::wgpu::WgpuRenderer` is initialised, `sprite_atlas()` returns the
 /// real `WgpuAtlas` from the renderer instead.
 struct FallbackAtlas {
     state: Mutex<FallbackAtlasState>,

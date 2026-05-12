@@ -90,11 +90,7 @@ The example app includes screens for Home, Counter, About, Settings, Components 
 
 ## License
 
-Licensed under any one of:
-
-- [GPL-3.0-or-later](LICENSE-GPL)
-- [AGPL-3.0-or-later](LICENSE-AGPL)
-- [Apache-2.0](LICENSE-APACHE)
+Licensed under [Apache-2.0](LICENSE-APACHE).
 
 ## Acknowledgements
 

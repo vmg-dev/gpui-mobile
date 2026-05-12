@@ -2,14 +2,15 @@
 name = "gpui-mobile"
 version = "0.1.0"
 edition = "2021"
-authors = ["Balamurali Pandranki <balamurali@live.com>"]
-license = "GPL-3.0-or-later OR AGPL-3.0-or-later OR Apache-2.0"
+authors = ["Balamurali Pandranki <balamurali@live.com>", "Minion"]
+license = "Apache-2.0"
 description = "Mobile platform support for GPUI — iOS (wpgu/Metal) and Android (wgpu/Vulkan)"
-repository = "https://github.com/itsbalamurali/gpui-mobile"
-homepage = "https://github.com/itsbalamurali/gpui-mobile"
+repository = "https://github.com/vmg-dev/gpui-mobile"
+homepage = "https://github.com/vmg-dev/gpui-mobile"
 keywords = ["gui", "mobile", "ios", "android", "gpui"]
 categories = ["gui", "os"]
 readme = "README.md"
+publish = false
 
 [features]
 default = ["url_launcher", "shared_preferences", "path_provider",
@@ -62,7 +63,7 @@ futures      = "0.3"
 raw-window-handle = "0.6"
 
 # ── GPUI core crate (provides Platform trait, event types, geometry, etc.) ───
-gpui = { git = "https://github.com/zed-industries/zed", rev = "5688167d224b5eca54875d49afb8bfd73a07915a", package = "gpui", default-features = false }
+gpui = { package = "gpui-ce", git = "https://github.com/vmg-dev/gpui-ce", rev = "4094809dba8bd86e1507aef749d95caf3f8a16de", default-features = false }
 
 # ── iOS ──────────────────────────────────────────────────────────────────────
 
@@ -78,12 +79,9 @@ core-text           = "=21.0.0"
 uuid                = { version = "1", features = ["v4", "v5"] }
 block2              = "0.6"
 
-# wgpu renderer (Metal backend on iOS/Android)
-gpui_wgpu = { git = "https://github.com/zed-industries/zed", rev = "5688167d224b5eca54875d49afb8bfd73a07915a", package = "gpui_wgpu", features = ["font-kit"] }
-wgpu = { git = "https://github.com/zed-industries/wgpu.git", branch = "v29" }
-
 # Text / font stack
 pathfinder_geometry = "0.5"
+pathfinder_simd = { version = "0.5", features = ["pf-no-simd"] }
 smallvec            = { version = "1.6", features = ["union", "const_new"] }
 
 # font-kit (same pin as gpui upstream)
@@ -108,9 +106,6 @@ android-activity = { version = "0.6", features = ["native-activity"] }
 # Logging to logcat
 android_logger = "0.15"
 
-# wgpu renderer (Vulkan backend on Android)
-gpui_wgpu = { git = "https://github.com/zed-industries/zed", rev = "5688167d224b5eca54875d49afb8bfd73a07915a", package = "gpui_wgpu", features = ["font-kit"] }
-
 # rustc-hash is required by the PlatformKeyboardMapper trait signature
 rustc-hash = "2"
 uuid       = { version = "1", features = ["v5"] }
@@ -119,9 +114,7 @@ uuid       = { version = "1", features = ["v5"] }
 
 [dev-dependencies]
 
-# ── patch: match Zed's pinned forks ──────────────────────────────────────────
-# These patches ensure that transitive deps from gpui/gpui_wgpu resolve
-# the same forked versions that the Zed workspace uses.
+# ── patch: match GPUI's pinned forks ─────────────────────────────────────────
 
 [patch.crates-io]
 async-task = { git = "https://github.com/smol-rs/async-task.git", rev = "b4486cd71e4e94fbda54ce6302444de14f4d190e" }

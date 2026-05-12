@@ -297,7 +297,7 @@ pub fn render(router: &Router) -> impl IntoElement {
                     div()
                         .text_xs()
                         .text_color(rgb(sub_text))
-                        .child("GPL-3.0 / AGPL-3.0 / Apache-2.0"),
+                        .child("Apache-2.0"),
                 ),
         )
 }
