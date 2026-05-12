@@ -10,14 +10,14 @@
 //! AndroidPlatform             (platform.rs)
 //!   ├── AndroidDispatcher     (dispatcher.rs)
 //!   ├── AndroidWindow         (window.rs)
-//!   │     └── gpui_wgpu::WgpuRenderer
+//!   │     └── gpui::wgpu::WgpuRenderer
 //!   ├── AndroidDisplay        (display.rs)
-//!   ├── gpui_wgpu::CosmicTextSystem
+//!   ├── gpui::wgpu::CosmicTextSystem
 //!   └── jni                   (jni.rs) — event loop + lifecycle
 //! ```
 //!
-//! GPU rendering and text shaping are delegated to the upstream `gpui_wgpu`
-//! crate which provides `WgpuRenderer`, `WgpuContext`, and `CosmicTextSystem`.
+//! GPU rendering and text shaping are delegated to GPUI's WGPU renderer,
+//! which provides `WgpuRenderer`, `WgpuContext`, and `CosmicTextSystem`.
 //!
 //! The JNI / ANativeActivity entry-points live in `jni.rs` and are the
 //! first Rust code that executes when the Android runtime loads the `.so`.
@@ -34,8 +34,8 @@
 //! This module depends on the `gpui` crate from the Zed repository for all
 //! core types: `Platform`, `PlatformWindow`, `PlatformDisplay`, `Pixels`,
 //! `DevicePixels`, `Size`, `Point`, `Bounds`, event types, text system traits,
-//! etc.  It also depends on `gpui_wgpu` for the wgpu-based renderer and
-//! cosmic-text system.
+//! etc.  It also uses `gpui::wgpu` for the wgpu-based renderer and cosmic-text
+//! system.
 //!
 //! This module is only compiled when `target_os = "android"`.
 

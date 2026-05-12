@@ -7,24 +7,24 @@
 //!
 //! The crate mirrors the structure used by `gpui_linux`:
 //! - A thin top-level `current_platform()` dispatcher that selects the right backend
-//! - An `ios` module for the iOS platform (Metal renderer via `gpui_wgpu`, UIKit, CoreText)
-//! - An `android` module for the Android platform (Vulkan renderer via `gpui_wgpu`, NDK)
+//! - An `ios` module for the iOS platform (Metal renderer via `gpui::wgpu`, UIKit, CoreText)
+//! - An `android` module for the Android platform (Vulkan renderer via `gpui::wgpu`, NDK)
 //!
 //! ## Integration with GPUI
 //!
 //! This crate depends on the `gpui` crate from the Zed repository for all
 //! core types: `Platform`, `PlatformWindow`, `PlatformDisplay`, `Pixels`,
 //! `DevicePixels`, `Size`, `Point`, `Bounds`, event types, text system traits,
-//! etc.  It also depends on `gpui_wgpu` for the GPU renderer (`WgpuRenderer`)
-//! and text system (`CosmicTextSystem`) on both platforms.
+//! etc.  It uses GPUI's WGPU renderer (`WgpuRenderer`) and text system
+//! (`CosmicTextSystem`) on both platforms.
 //!
 //! ## iOS
 //!
-//! The iOS implementation uses UIKit for windowing and `gpui_wgpu` for Metal
+//! The iOS implementation uses UIKit for windowing and GPUI's WGPU renderer for Metal
 //! rendering.  Key modules:
 //!
 //! - `platform`   — `IosPlatform` implementing the GPUI `Platform` trait
-//! - `window`     — `IosWindow` backed by `UIWindow` + `CAMetalLayer` + `gpui_wgpu`
+//! - `window`     — `IosWindow` backed by `UIWindow` + `CAMetalLayer` + `gpui::wgpu`
 //! - `display`    — `IosDisplay` wrapping `UIScreen`
 //! - `dispatcher` — `IosDispatcher` using Grand Central Dispatch
 //! - `events`     — Touch-to-mouse event translation
@@ -34,11 +34,11 @@
 //!
 //! ## Android
 //!
-//! The Android implementation uses the NDK for windowing and `gpui_wgpu` for
+//! The Android implementation uses the NDK for windowing and GPUI's WGPU renderer for
 //! Vulkan rendering.  Key modules:
 //!
 //! - `platform`   — `AndroidPlatform` implementing the GPUI `Platform` trait
-//! - `window`     — `AndroidWindow` backed by `ANativeWindow` + `gpui_wgpu`
+//! - `window`     — `AndroidWindow` backed by `ANativeWindow` + `gpui::wgpu`
 //! - `display`    — `AndroidDisplay` wrapping NDK display info
 //! - `dispatcher` — `AndroidDispatcher` using `ALooper` + thread pool
 //! - `keyboard`   — Android NDK key code → GPUI `Keystroke` mapping

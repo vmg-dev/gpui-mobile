@@ -8,11 +8,12 @@
 //!
 //! The window is backed by a UIWindow containing a UIViewController
 //! whose view hosts a CAMetalLayer. Rendering is performed by
-//! `gpui_wgpu::WgpuRenderer` which drives wgpu over the Metal backend.
+//! `gpui::wgpu::WgpuRenderer` which drives wgpu over the Metal backend.
 
 use super::events::*;
 use super::IosDisplay;
 use crate::momentum::{MomentumScroller, VelocityTracker};
+use gpui::wgpu::{wgpu, GpuContext, WgpuContext, WgpuRenderer, WgpuSurfaceConfig};
 use gpui::{
     point, px, size, AnyWindowHandle, AtlasKey, AtlasTextureId, AtlasTextureKind, AtlasTile,
     Bounds, Capslock, DevicePixels, DispatchEventResult, GpuSpecs, Modifiers, Pixels,
@@ -20,7 +21,6 @@ use gpui::{
     PromptButton, PromptLevel, RequestFrameOptions, Scene, Size, TileId, WindowAppearance,
     WindowBackgroundAppearance, WindowBounds, WindowControlArea, WindowParams,
 };
-use gpui_wgpu::{GpuContext, WgpuContext, WgpuRenderer, WgpuSurfaceConfig};
 use objc2::encode::{Encode, Encoding, RefEncode};
 use objc2::runtime::{AnyClass, AnyObject, Bool, ClassBuilder, Sel};
 use objc2::{class, msg_send, sel};
@@ -597,14 +597,13 @@ impl IosWindow {
 
             // Create the wgpu renderer using the Metal backend.
             //
-            // `gpui_wgpu::WgpuContext::instance()` only enables Vulkan+GL,
+            // `gpui::wgpu::WgpuContext::instance()` only enables Vulkan+GL,
             // so we create our own wgpu instance with Metal enabled, build
             // a surface from the UIView's raw window handle, construct the
             // WgpuContext with that instance, and finally create the renderer.
             let config = WgpuSurfaceConfig {
                 size: size(DevicePixels(pixel_w), DevicePixels(pixel_h)),
                 transparent: false,
-                preferred_present_mode: None,
             };
 
             let metal_instance = wgpu::Instance::new(wgpu::InstanceDescriptor {

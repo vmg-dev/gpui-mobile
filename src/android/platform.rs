@@ -34,13 +34,13 @@
 
 use anyhow::Result;
 use futures::channel::oneshot;
+use gpui::wgpu::{CosmicTextSystem, GpuContext};
 use gpui::{
     Action, AnyWindowHandle, BackgroundExecutor, ClipboardItem, CursorStyle, ForegroundExecutor,
     KeybindingKeystroke, Keymap, Keystroke, Menu, MenuItem, PathPromptOptions, Platform,
     PlatformDisplay, PlatformKeyboardLayout, PlatformKeyboardMapper, PlatformTextSystem,
     PlatformWindow, Task, ThermalState, WindowAppearance, WindowParams,
 };
-use gpui_wgpu::CosmicTextSystem;
 use parking_lot::Mutex;
 use std::{
     cell::RefCell,
@@ -59,8 +59,6 @@ use super::{
     window::{AndroidWindow, WindowList},
     AndroidBackend,
 };
-use gpui_wgpu::GpuContext;
-
 // ── stub: clipboard ───────────────────────────────────────────────────────────
 
 /// Android clipboard (thin wrapper over `ClipboardManager` via JNI).

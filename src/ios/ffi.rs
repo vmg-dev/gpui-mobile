@@ -12,7 +12,8 @@
 //! gpui_ios_request_frame(ptr)  // called every CADisplayLink tick
 //! ```
 
-use gpui::{App, AppContext, Application, RequestFrameOptions, WindowOptions};
+use gpui::{App, AppContext, Application, AssetSource, RequestFrameOptions, WindowOptions};
+use std::cell::RefCell;
 use std::ffi::c_void;
 use std::rc::Rc;
 use std::sync::OnceLock;
@@ -20,6 +21,10 @@ use std::sync::OnceLock;
 /// Global storage for the GPUI application state.
 /// This is set during initialization and used by FFI callbacks.
 static IOS_APP_STATE: OnceLock<IosAppState> = OnceLock::new();
+
+thread_local! {
+    static RETAINED_APPLICATION: RefCell<Option<Application>> = const { RefCell::new(None) };
+}
 
 /// Holds the state needed for iOS FFI callbacks.
 /// Note: On iOS, all UI code runs on the main thread, so we use a RefCell
@@ -480,6 +485,25 @@ pub extern "C" fn gpui_ios_run_demo() {
 pub fn run_app() {
     log::info!("GPUI iOS: Starting application");
 
+    let platform = Rc::new(super::IosPlatform::new());
+    let application = Application::with_platform(platform);
+    run_application(application);
+}
+
+/// Run the GPUI iOS application with a caller-provided asset source and root callback.
+pub fn run_app_with_assets(
+    assets: impl AssetSource + 'static,
+    callback: impl FnOnce(&mut App) + 'static,
+) {
+    log::info!("GPUI iOS: Starting application with caller assets");
+
+    set_app_callback(Box::new(callback));
+    let platform = Rc::new(super::IosPlatform::new());
+    let application = Application::with_platform(platform).with_assets(assets);
+    run_application(application);
+}
+
+fn run_application(application: Application) {
     // Initialise the FFI layer if not already done.
     if IOS_APP_STATE.get().is_none() {
         let state = IosAppState {
@@ -489,13 +513,16 @@ pub fn run_app() {
         let _ = IOS_WINDOW_LIST.set(WindowListWrapper(std::cell::UnsafeCell::new(Vec::new())));
     }
 
-    let platform = Rc::new(super::IosPlatform::new());
-    Application::with_platform(platform).run(|cx: &mut App| {
+    RETAINED_APPLICATION.with(|slot| {
+        *slot.borrow_mut() = Some(retain_application(&application));
+    });
+
+    application.run(|cx: &mut App| {
         if let Some(cb) = take_app_callback() {
             log::info!("GPUI iOS: Invoking user-provided app callback");
             cb(cx);
         } else {
-            log::warn!("GPUI iOS: No app callback registered — opening default empty window");
+            log::warn!("GPUI iOS: No app callback registered - opening default empty window");
             cx.open_window(
                 WindowOptions {
                     window_bounds: None,
@@ -517,5 +544,18 @@ pub fn run_app() {
             log::info!("GPUI iOS: Invoking Application::run callback");
             callback();
         }
+    }
+}
+
+fn retain_application(application: &Application) -> Application {
+    // GPUI's `Application::run(self, ..)` assumes the platform run loop keeps
+    // `self` alive while windows exist. UIKit owns the run loop, so the iOS
+    // platform returns immediately and GPUI's app cell would otherwise be
+    // dropped while UIKit still holds the native window. `Application` is a
+    // newtype around `Rc<AppCell>`; clone the Rc behind the opaque newtype and
+    // store it on the main thread for the process lifetime.
+    unsafe {
+        let rc = application as *const Application as *const Rc<()>;
+        std::mem::transmute::<Rc<()>, Application>((*rc).clone())
     }
 }
