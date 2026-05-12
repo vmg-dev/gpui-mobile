@@ -231,6 +231,15 @@ fn register_metal_view_class() -> &'static AnyClass {
             handle_scroll_gesture(this, recognizer);
         }
 
+        extern "C" fn should_recognize_simultaneously(
+            _this: *mut AnyObject,
+            _sel: Sel,
+            _gesture_recognizer: *mut AnyObject,
+            _other_gesture_recognizer: *mut AnyObject,
+        ) -> Bool {
+            Bool::YES
+        }
+
         unsafe {
             // Add class method for layerClass
             decl.add_class_method(
@@ -259,6 +268,11 @@ fn register_metal_view_class() -> &'static AnyClass {
             decl.add_method(
                 sel!(gpuiScrollGesture:),
                 scroll_gesture as extern "C" fn(*mut AnyObject, Sel, *mut AnyObject),
+            );
+            decl.add_method(
+                sel!(gestureRecognizer:shouldRecognizeSimultaneouslyWithGestureRecognizer:),
+                should_recognize_simultaneously
+                    as extern "C" fn(*mut AnyObject, Sel, *mut AnyObject, *mut AnyObject) -> Bool,
             );
         }
 
@@ -461,6 +475,7 @@ fn install_scroll_gesture_recognizers(view: *mut AnyObject) {
             msg_send![discrete, initWithTarget: view, action: sel!(gpuiScrollGesture:)];
         let _: () = msg_send![discrete, setAllowedScrollTypesMask: UI_SCROLL_TYPE_MASK_DISCRETE];
         let _: () = msg_send![discrete, setAllowedTouchTypes: empty_touch_types];
+        let _: () = msg_send![discrete, setDelegate: view];
         let _: () = msg_send![discrete, setCancelsTouchesInView: false];
         let _: () = msg_send![view, addGestureRecognizer: discrete];
 
@@ -470,6 +485,7 @@ fn install_scroll_gesture_recognizers(view: *mut AnyObject) {
         let _: () =
             msg_send![continuous, setAllowedScrollTypesMask: UI_SCROLL_TYPE_MASK_CONTINUOUS];
         let _: () = msg_send![continuous, setAllowedTouchTypes: empty_touch_types];
+        let _: () = msg_send![continuous, setDelegate: view];
         let _: () = msg_send![continuous, setCancelsTouchesInView: false];
         let _: () = msg_send![view, addGestureRecognizer: continuous];
     }
