@@ -35,7 +35,7 @@ use std::{
     ptr::{self, NonNull},
     rc::Rc,
     sync::Arc,
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 const GPUI_WINDOW_IVAR: &str = "gpui_window_ptr";
@@ -545,6 +545,12 @@ fn touch_major_radius(touch: *mut AnyObject) -> f32 {
 /// is promoted from a potential tap to a scroll gesture.
 const SCROLL_SLOP: f32 = 8.0;
 
+/// How long the finger must rest on focused text before a drag selects
+/// instead of scrolling. Mirrors the platform long-press convention: an
+/// immediate drag scrolls (or pans an app surface); press-and-hold then
+/// drag extends a selection.
+const LONG_PRESS_SELECTION_HOLD: Duration = Duration::from_millis(350);
+
 /// Tracks the current touch gesture state machine.
 ///
 /// This distinguishes taps (short, stationary touches) from scroll gestures
@@ -565,6 +571,7 @@ enum TouchState {
         start_x: f32,
         start_y: f32,
         anchor_utf16: usize,
+        began_at: Instant,
     },
     /// Finger movement selected text input instead of scrolling.
     TextSelecting { anchor_utf16: usize },
@@ -1067,13 +1074,14 @@ impl IosWindow {
                         })
                     });
                 if let Some(anchor_utf16) = text_anchor {
-                    if let Some(handler) = self.input_handler.borrow_mut().as_mut() {
-                        handler.set_selected_text_range(anchor_utf16..anchor_utf16, false);
-                    }
+                    // The caret is NOT moved yet: a drag from here may be a
+                    // scroll or an app pan, which should leave the caret
+                    // alone. It is placed on tap (Ended) instead.
                     ts = TouchState::TextPending {
                         start_x: logical_x,
                         start_y: logical_y,
                         anchor_utf16,
+                        began_at: Instant::now(),
                     };
                 } else {
                     ts = TouchState::Pending {
@@ -1104,14 +1112,19 @@ impl IosWindow {
                         start_x,
                         start_y,
                         anchor_utf16,
+                        began_at,
                     } => {
                         let dx = logical_x - start_x;
                         let dy = logical_y - start_y;
                         let distance = (dx * dx + dy * dy).sqrt();
 
                         if distance > SCROLL_SLOP {
-                            if dx.abs() > dy.abs() {
+                            if began_at.elapsed() >= LONG_PRESS_SELECTION_HOLD {
                                 ts = TouchState::TextSelecting { anchor_utf16 };
+                                #[cfg(feature = "vibration")]
+                                let _ = crate::packages::vibration::haptic_feedback(
+                                    crate::packages::vibration::HapticFeedback::Selection,
+                                );
                                 if let Some(handler) = self.input_handler.borrow_mut().as_mut() {
                                     if let Some(current_utf16) =
                                         handler.character_index_for_point(position)
@@ -1234,8 +1247,22 @@ impl IosWindow {
             UITouchPhase::Ended | UITouchPhase::Cancelled => {
                 self.touch_pressed.set(false);
                 match ts {
-                    TouchState::TextPending { .. } => {
+                    TouchState::TextPending {
+                        start_x,
+                        start_y,
+                        anchor_utf16,
+                        ..
+                    } => {
                         self.velocity_tracker.borrow_mut().reset();
+                        // Finger lifted without exceeding slop → tap: place
+                        // the caret at the touch point.
+                        let dx = logical_x - start_x;
+                        let dy = logical_y - start_y;
+                        if (dx * dx + dy * dy).sqrt() <= SCROLL_SLOP {
+                            if let Some(handler) = self.input_handler.borrow_mut().as_mut() {
+                                handler.set_selected_text_range(anchor_utf16..anchor_utf16, false);
+                            }
+                        }
                     }
                     TouchState::TextSelecting { .. } => {
                         self.velocity_tracker.borrow_mut().reset();

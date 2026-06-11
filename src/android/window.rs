@@ -1488,6 +1488,11 @@ impl PlatformWindow for AndroidPlatformWindow {
             /// Distance (logical px) the finger must travel before a touch
             /// is promoted from a potential tap to a scroll gesture.
             const SCROLL_SLOP: f32 = 8.0;
+            /// How long the finger must rest on focused text before a drag
+            /// selects instead of scrolling, mirroring the platform
+            /// long-press convention.
+            const LONG_PRESS_SELECTION_HOLD: std::time::Duration =
+                std::time::Duration::from_millis(350);
 
             fn pointer_kind_from_tool_type(tool_type: u32) -> gpui::PointerDeviceKind {
                 match tool_type {
@@ -1578,6 +1583,7 @@ impl PlatformWindow for AndroidPlatformWindow {
                     start_x: f32,
                     start_y: f32,
                     anchor_utf16: usize,
+                    began_at: std::time::Instant,
                 },
                 /// Finger movement selected text input instead of scrolling.
                 TextSelecting {
@@ -1841,16 +1847,15 @@ impl PlatformWindow for AndroidPlatformWindow {
                             })
                         };
                         if let Some(anchor_utf16) = text_anchor {
-                            let mut input_handler = input_handler.0.lock();
-                            if let Some(handler) = input_handler.as_mut() {
-                                handler.set_selected_text_range(anchor_utf16..anchor_utf16, false);
-                                crate::android::text_input::sync_state_to_java(handler);
-                            }
+                            // The caret is NOT moved yet: a drag from here may
+                            // be a scroll or an app pan, which should leave
+                            // the caret alone. It is placed on tap (UP).
                             *ts = TouchState::TextPending {
                                 pointer_id: android_pointer,
                                 start_x: logical_x,
                                 start_y: logical_y,
                                 anchor_utf16,
+                                began_at: std::time::Instant::now(),
                             };
                         } else {
                             *ts = TouchState::Pending {
@@ -1893,13 +1898,18 @@ impl PlatformWindow for AndroidPlatformWindow {
                                 start_x,
                                 start_y,
                                 anchor_utf16,
+                                began_at,
                             } if pointer_id == android_pointer => {
                                 let dx = logical_x - start_x;
                                 let dy = logical_y - start_y;
                                 let distance = (dx * dx + dy * dy).sqrt();
 
                                 if distance > SCROLL_SLOP {
-                                    if dx.abs() > dy.abs() {
+                                    if began_at.elapsed() >= LONG_PRESS_SELECTION_HOLD {
+                                        #[cfg(feature = "vibration")]
+                                        let _ = crate::packages::vibration::haptic_feedback(
+                                            crate::packages::vibration::HapticFeedback::Selection,
+                                        );
                                         *ts = TouchState::TextSelecting {
                                             pointer_id,
                                             anchor_utf16,
@@ -2058,12 +2068,30 @@ impl PlatformWindow for AndroidPlatformWindow {
                     // ── ACTION_UP / ACTION_CANCEL ────────────────────────
                     crate::android::ANDROID_ACTION_UP | crate::android::ANDROID_ACTION_CANCEL => {
                         match *ts {
-                            TouchState::TextPending { pointer_id, .. }
-                                if pointer_id == android_pointer =>
-                            {
+                            TouchState::TextPending {
+                                pointer_id,
+                                start_x,
+                                start_y,
+                                anchor_utf16,
+                                ..
+                            } if pointer_id == android_pointer => {
                                 let mut ms = momentum.lock();
                                 ms.velocity_tracker.reset();
                                 ms.has_pending_scroll = false;
+                                // Finger lifted without exceeding slop → tap:
+                                // place the caret at the touch point.
+                                let dx = logical_x - start_x;
+                                let dy = logical_y - start_y;
+                                if (dx * dx + dy * dy).sqrt() <= SCROLL_SLOP {
+                                    let mut input_handler = input_handler.0.lock();
+                                    if let Some(handler) = input_handler.as_mut() {
+                                        handler.set_selected_text_range(
+                                            anchor_utf16..anchor_utf16,
+                                            false,
+                                        );
+                                        crate::android::text_input::sync_state_to_java(handler);
+                                    }
+                                }
                             }
                             TouchState::TextSelecting { pointer_id, .. }
                                 if pointer_id == android_pointer =>
